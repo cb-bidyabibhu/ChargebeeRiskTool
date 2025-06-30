@@ -13,6 +13,36 @@ import {
 import apiService from './services/api';
 import ConnectionStatus from './components/ConnectionStatus';
 
+// Safe helper functions to prevent crashes
+const safeGetCompanyName = (assessment) => {
+  return assessment?.company_name || assessment?.domain || 'Unknown Company';
+};
+
+const safeGetDomain = (assessment) => {
+  if (assessment?.domain) return assessment.domain;
+  if (assessment?.company_name) {
+    return `${assessment.company_name.toLowerCase().replace(/\s+/g, '')}.com`;
+  }
+  return 'unknown-domain.com';
+};
+
+const safeRenderAssessmentTitle = (assessment) => {
+  const domain = assessment?.domain;
+  const companyName = assessment?.company_name;
+  
+  if (domain) return domain;
+  if (companyName) return `${companyName.toLowerCase()}.com`;
+  return 'New Assessment';
+};
+
+const safeGetBusinessDomain = (assessment) => {
+  if (assessment?.domain) return assessment.domain;
+  if (assessment?.company_name) {
+    return `${assessment.company_name.toLowerCase().replace(/\s+/g, '')}.com`;
+  }
+  return 'unknown-domain.com';
+};
+
 // Mock user for demonstration
 const mockUser = {
   email: 'bidya.bibhu@chargebee.com',
@@ -26,14 +56,14 @@ const generatePDFReport = (assessment) => {
     apiService.generatePDFReport(assessment.id)
       .then(result => {
         console.log('PDF generation result:', result);
-        alert(`PDF report for ${assessment.company_name} generated successfully!`);
+        alert(`PDF report for ${safeGetCompanyName(assessment)} generated successfully!`);
       })
       .catch(error => {
         console.error('PDF generation failed:', error);
         alert(`Failed to generate PDF: ${error.message}`);
       });
   } else {
-    alert(`PDF report for ${assessment.company_name} would be generated here. Assessment ID required.`);
+    alert(`PDF report for ${safeGetCompanyName(assessment)} would be generated here. Assessment ID required.`);
   }
 };
 
@@ -47,7 +77,7 @@ const exportToCSV = (assessments) => {
       // Fallback to client-side CSV generation
       const headers = ['Company Name', 'Domain', 'Risk Level', 'Score', 'Date', 'Assessment Type'];
       const csvData = assessments.map(assessment => [
-        assessment.company_name,
+        safeGetCompanyName(assessment),
         assessment.domain || 'N/A',
         assessment.risk_assessment_data?.risk_level || 'N/A',
         assessment.risk_assessment_data?.weighted_total_score?.toFixed(1) || 'N/A',
@@ -348,7 +378,7 @@ const ChargebeeStyleDashboard = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {/* CONNECTION STATUS - ADDED HERE */}
+        {/* CONNECTION STATUS */}
         <div className="mb-6">
           <ConnectionStatus />
         </div>
@@ -359,7 +389,7 @@ const ChargebeeStyleDashboard = () => {
           {/* Left Panel - 30% */}
           <div className="col-span-12 lg:col-span-4 space-y-6">
             
-            {/* Assessment Hub */}
+            {/* ENHANCED Assessment Hub */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mr-4">
@@ -367,24 +397,78 @@ const ChargebeeStyleDashboard = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Assessment Hub</h3>
-                  <p className="text-sm text-gray-500">Enter a domain to assess business risk</p>
+                  <p className="text-sm text-gray-500">Enter a business domain to assess risk and compliance</p>
                 </div>
               </div>
 
-              {/* Domain Input */}
+              {/* ENHANCED Domain Input with Instructions */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Website*</label>
-                  <input
-                    type="text"
-                    value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                    placeholder="shopify.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Business Website Domain *
+                  </label>
+                  
+                  {/* Enhanced Input Field */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={domainInput}
+                      onChange={(e) => setDomainInput(e.target.value)}
+                      placeholder="shopify.com"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      <Globe className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </div>
+                  
+                  {/* Helpful Instructions */}
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-gray-600">
+                      <strong>Enter the company's primary website domain</strong> (without https:// or www.)
+                    </p>
+                    
+                    {/* Examples */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-xs text-gray-500">Examples:</span>
+                      {['stripe.com', 'salesforce.com', 'zoom.us', 'atlassian.com'].map((example) => (
+                        <button
+                          key={example}
+                          onClick={() => setDomainInput(example)}
+                          className="text-xs bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 px-2 py-1 rounded transition-colors"
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Format Guidelines */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                      <div className="flex items-start space-x-2">
+                        <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-blue-800">
+                          <p className="font-medium mb-1">What to enter:</p>
+                          <div className="grid grid-cols-2 gap-1 text-xs">
+                            <div>
+                              <span className="text-green-600">✓</span> shopify.com
+                            </div>
+                            <div>
+                              <span className="text-green-600">✓</span> microsoft.com
+                            </div>
+                            <div>
+                              <span className="text-red-600">✗</span> https://shopify.com
+                            </div>
+                            <div>
+                              <span className="text-red-600">✗</span> Shopify Inc.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* FIXED Action Buttons */}
+                {/* Enhanced Action Buttons */}
                 <div className="space-y-3">
                   {/* FIRST BUTTON: Fetch Existing Assessment */}
                   <button
@@ -395,12 +479,12 @@ const ChargebeeStyleDashboard = () => {
                     {isFetching ? (
                       <>
                         <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                        Fetching Existing...
+                        Searching Database...
                       </>
                     ) : (
                       <>
                         <Eye className="w-5 h-5 mr-2" />
-                        Fetch Existing Assessment
+                        Check Existing Assessment
                       </>
                     )}
                   </button>
@@ -414,20 +498,38 @@ const ChargebeeStyleDashboard = () => {
                     {isAssessing ? (
                       <>
                         <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                        Creating New Assessment...
+                        Running Risk Analysis...
                       </>
                     ) : (
                       <>
                         <Search className="w-5 h-5 mr-2" />
-                        Start New Assessment
+                        Start New Risk Assessment
                       </>
                     )}
                   </button>
                 </div>
 
-                <p className="text-xs text-gray-500 text-center">
-                  Fetch existing first, or create new assessment
-                </p>
+                {/* Process Information */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 text-xs text-gray-600">
+                    <Clock className="w-4 h-4" />
+                    <span>Assessment takes 30-60 seconds</span>
+                    <span>•</span>
+                    <Database className="w-4 h-4" />
+                    <span>20+ data sources analyzed</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Our system will analyze business registration, financial health, compliance status, and online presence.
+                  </p>
+                </div>
+
+                {/* Input Validation Hint */}
+                {domainInput && !domainInput.includes('.') && (
+                  <div className="flex items-center space-x-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Please enter a valid domain (e.g., company.com)</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -461,7 +563,7 @@ const ChargebeeStyleDashboard = () => {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-medium text-gray-900 truncate">
-                            {assessment.company_name}
+                            {safeGetCompanyName(assessment)}
                           </h4>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRiskBadgeColor(assessment.risk_assessment_data?.risk_level)}`}>
                             {assessment.risk_assessment_data?.risk_level || 'Medium'}
@@ -486,19 +588,19 @@ const ChargebeeStyleDashboard = () => {
             {currentAssessment ? (
               <div className="space-y-6">
                 
-                {/* Assessment Header */}
+                {/* Assessment Header - FIXED THE CRASH HERE */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center space-x-4">
                       <div>
                         <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                          {currentAssessment.domain || `${currentAssessment.company_name.toLowerCase()}.com`}
+                          {safeRenderAssessmentTitle(currentAssessment)}
                           <ExternalLink 
                             className="w-5 h-5 ml-2 text-gray-400 cursor-pointer hover:text-blue-600" 
-                            onClick={() => window.open(`https://${currentAssessment.domain || `${currentAssessment.company_name.toLowerCase()}.com`}`, '_blank')}
+                            onClick={() => window.open(`https://${safeGetDomain(currentAssessment)}`, '_blank')}
                           />
                         </h2>
-                        <p className="text-gray-600">{currentAssessment.company_name}</p>
+                        <p className="text-gray-600">{safeGetCompanyName(currentAssessment)}</p>
                         <p className="text-sm text-gray-500">
                           Assessment generated on {new Date(currentAssessment.created_at).toLocaleDateString()}
                         </p>
@@ -631,7 +733,7 @@ const ChargebeeStyleDashboard = () => {
                   <Shield className="w-10 h-10 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Assessment Selected</h3>
-                <p className="text-gray-600 mb-6">Enter a domain in the Assessment Hub to get started, or select from recent assessments.</p>
+                <p className="text-gray-600 mb-6">Enter a business domain in the Assessment Hub to get started, or select from recent assessments.</p>
                 <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
                   <div className="flex items-center">
                     <Clock className="w-4 h-4 mr-1" />
@@ -652,7 +754,7 @@ const ChargebeeStyleDashboard = () => {
   );
 };
 
-// Assessment List View Component
+// Assessment List View Component - FIXED TABLE
 const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessment, onBulkDelete }) => {
   const [selectedAssessments, setSelectedAssessments] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
@@ -695,10 +797,6 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
       case 'high': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
-
-  const getBusinessDomain = (assessment) => {
-    return assessment.domain || `${assessment.company_name.toLowerCase().replace(' ', '')}.com`;
   };
 
   return (
@@ -788,7 +886,7 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                   className="px-6 py-4 whitespace-nowrap cursor-pointer"
                   onClick={() => onSelectAssessment(assessment)}
                 >
-                  <div className="text-sm font-medium text-gray-900">{assessment.company_name}</div>
+                  <div className="text-sm font-medium text-gray-900">{safeGetCompanyName(assessment)}</div>
                   <div className="text-sm text-gray-500">
                     {assessment.assessment_type === 'enhanced_with_scrapers' ? 'Enhanced' : 
                      assessment.assessment_type === 'unified_ai_plus_scrapers' ? 'Unified' : 'Standard'} Assessment
@@ -796,11 +894,11 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <button
-                    onClick={() => window.open(`https://${getBusinessDomain(assessment)}`, '_blank')}
+                    onClick={() => window.open(`https://${safeGetBusinessDomain(assessment)}`, '_blank')}
                     className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
                   >
                     <Globe className="w-4 h-4 mr-1" />
-                    {getBusinessDomain(assessment)}
+                    {safeGetBusinessDomain(assessment)}
                     <ExternalLink className="w-3 h-3 ml-1" />
                   </button>
                 </td>
@@ -853,7 +951,7 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const confirmed = window.confirm(`Delete assessment for ${assessment.company_name}?`);
+                        const confirmed = window.confirm(`Delete assessment for ${safeGetCompanyName(assessment)}?`);
                         if (confirmed) {
                           onDeleteAssessment(assessment.id);
                         }
@@ -958,7 +1056,7 @@ const RiskAssessmentsPage = () => {
           {/* Detailed Assessment View */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Assessment Details - {selectedAssessment?.company_name}
+              Assessment Details - {safeGetCompanyName(selectedAssessment)}
             </h2>
             
             {selectedAssessment ? (
@@ -966,7 +1064,7 @@ const RiskAssessmentsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Company</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedAssessment.company_name}</p>
+                    <p className="mt-1 text-sm text-gray-900">{safeGetCompanyName(selectedAssessment)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Domain</label>
