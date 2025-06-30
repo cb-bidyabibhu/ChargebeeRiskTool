@@ -36,8 +36,6 @@ cryptography==41.0.7
 # Async & Performance
 asyncio-throttle==1.0.2
 
-# Utilities - STABLE VERSIONS
-pydantic==2.5.0
 python-dateutil==2.8.2
 typing-extensions==4.8.0
 
