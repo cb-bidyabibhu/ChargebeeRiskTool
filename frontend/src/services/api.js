@@ -1,27 +1,33 @@
-// frontend/src/services/api.js - Fixed API configuration
+// frontend/src/services/api.js - Fixed with proper export and environment detection
 
 class APIService {
   constructor() {
-    // Fix #1: Dynamic backend URL detection
+    // Fix: Proper environment detection for Render deployment
     this.baseURL = this.getBackendURL();
     console.log('API Service initialized with baseURL:', this.baseURL);
+    console.log('Current hostname:', window.location.hostname);
+    console.log('Current href:', window.location.href);
   }
 
   getBackendURL() {
-    // Check if we're in development or production
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1';
+    const currentHostname = window.location.hostname;
     
-    if (isDevelopment) {
-      // Try multiple local ports
-      return 'http://localhost:8000';
-    } else {
+    // Check if we're on Render (frontend deployed)
+    if (currentHostname.includes('onrender.com')) {
       // Production - use your Render backend URL
       return 'https://chargebee-kyb-backend.onrender.com';
     }
+    
+    // Check if we're in local development
+    if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    
+    // Default fallback to production
+    return 'https://chargebee-kyb-backend.onrender.com';
   }
 
-  // Fix #2: Add retry logic and better error handling
+  // Add retry logic and better error handling
   async makeRequest(endpoint, options = {}) {
     const maxRetries = 3;
     let lastError;
@@ -36,8 +42,8 @@ class APIService {
             'Content-Type': 'application/json',
             ...options.headers,
           },
-          // Add timeout
-          signal: AbortSignal.timeout(30000), // 30 second timeout
+          // Add timeout (30 seconds)
+          signal: AbortSignal.timeout(30000),
         });
 
         if (!response.ok) {
@@ -64,7 +70,7 @@ class APIService {
     throw new Error(`All ${maxRetries} attempts failed. Last error: ${lastError.message}`);
   }
 
-  // Fix #3: Health check method
+  // Health check method
   async checkBackendHealth() {
     try {
       const health = await this.makeRequest('/health');
@@ -76,7 +82,7 @@ class APIService {
     }
   }
 
-  // Enhanced methods with better error handling
+  // API Methods
   async fetchAssessments() {
     try {
       return await this.makeRequest('/assessments');
@@ -125,8 +131,20 @@ class APIService {
       throw new Error('Unable to delete assessment.');
     }
   }
+
+  async exportData(format = 'csv') {
+    try {
+      return await this.makeRequest(`/assessments/export/${format}`);
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      throw new Error('Unable to export data.');
+    }
+  }
 }
 
-// Export singleton instance
+// Create and export singleton instance
 const apiService = new APIService();
+
+// Fix: Proper export statements
 export default apiService;
+export { apiService };

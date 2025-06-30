@@ -1,7 +1,6 @@
-// frontend/src/components/ConnectionStatus.js
+// frontend/src/components/ConnectionStatus.js - Simple version with no external dependencies
 
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import apiService from '../services/api';
 
 const ConnectionStatus = () => {
@@ -37,69 +36,92 @@ const ConnectionStatus = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const getStatusColor = () => {
+  const getStatusStyle = () => {
     switch (connectionStatus) {
-      case 'connected': return 'text-green-600 bg-green-50';
-      case 'failed': return 'text-red-600 bg-red-50';
-      default: return 'text-yellow-600 bg-yellow-50';
-    }
-  };
-
-  const getStatusIcon = () => {
-    if (isChecking) return <RefreshCw className="w-4 h-4 animate-spin" />;
-    switch (connectionStatus) {
-      case 'connected': return <CheckCircle className="w-4 h-4" />;
-      case 'failed': return <AlertCircle className="w-4 h-4" />;
-      default: return <RefreshCw className="w-4 h-4" />;
+      case 'connected': 
+        return {
+          backgroundColor: '#f0f9ff',
+          color: '#065f46',
+          borderColor: '#10b981'
+        };
+      case 'failed': 
+        return {
+          backgroundColor: '#fef2f2',
+          color: '#991b1b',
+          borderColor: '#ef4444'
+        };
+      default: 
+        return {
+          backgroundColor: '#fffbeb',
+          color: '#92400e',
+          borderColor: '#f59e0b'
+        };
     }
   };
 
   const getStatusText = () => {
     switch (connectionStatus) {
-      case 'connected': return 'Backend Connected';
-      case 'failed': return 'Backend Connection Failed';
-      default: return 'Checking Connection...';
+      case 'connected': return '✅ Backend Connected';
+      case 'failed': return '❌ Backend Connection Failed';
+      default: return '🔄 Checking Connection...';
     }
   };
 
   return (
-    <div className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor()}`}>
-      <div className="flex items-center space-x-2">
-        {getStatusIcon()}
-        <span className="font-medium">{getStatusText()}</span>
-      </div>
-      
-      <div className="flex items-center space-x-2">
+    <div style={{
+      ...getStatusStyle(),
+      padding: '12px',
+      borderRadius: '8px',
+      border: '1px solid',
+      marginBottom: '16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontWeight: '500' }}>
+          {getStatusText()}
+        </span>
         {backendInfo && (
-          <span className="text-sm">
-            v{backendInfo.version} | {backendInfo.services?.database}
+          <span style={{ fontSize: '12px', opacity: 0.8 }}>
+            v{backendInfo.version}
           </span>
         )}
-        <button
-          onClick={checkConnection}
-          disabled={isChecking}
-          className="px-3 py-1 text-sm bg-white border rounded hover:bg-gray-50 disabled:opacity-50"
-        >
-          {isChecking ? 'Checking...' : 'Retry'}
-        </button>
       </div>
+      
+      <button
+        onClick={checkConnection}
+        disabled={isChecking}
+        style={{
+          padding: '4px 12px',
+          fontSize: '12px',
+          backgroundColor: 'white',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          cursor: isChecking ? 'not-allowed' : 'pointer',
+          opacity: isChecking ? 0.5 : 1
+        }}
+      >
+        {isChecking ? 'Checking...' : 'Retry'}
+      </button>
 
       {error && (
-        <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded text-sm text-red-700">
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          marginTop: '8px',
+          padding: '8px',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fecaca',
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: '#991b1b'
+        }}>
           <strong>Error:</strong> {error}
           <br />
           <strong>Backend URL:</strong> {apiService.baseURL}
-        </div>
-      )}
-
-      {connectionStatus === 'failed' && (
-        <div className="mt-2 p-2 bg-yellow-100 border border-yellow-200 rounded text-sm text-yellow-700">
-          <strong>Troubleshooting:</strong>
-          <ul className="list-disc list-inside mt-1">
-            <li>Check if backend is running locally on port 8000</li>
-            <li>Verify Render deployment is active</li>
-            <li>Check browser console for detailed errors</li>
-          </ul>
         </div>
       )}
     </div>

@@ -9,12 +9,13 @@ import {
   Edit3, Copy, Share2
 } from 'lucide-react';
 
-// Import the API service
-import { apiService, domainUtils, riskUtils } from './services/api';
+// Import the API service - FIXED IMPORT
+import apiService from './services/api';
+import ConnectionStatus from './components/ConnectionStatus';
 
 // Mock user for demonstration
 const mockUser = {
-  email: 'bidya.sharma@chargebee.com',
+  email: 'bidya.bibhu@chargebee.com',
   name: 'Bidya Sharma',
   role: 'Risk Analyst'
 };
@@ -37,7 +38,7 @@ const generatePDFReport = (assessment) => {
 };
 
 const exportToCSV = (assessments) => {
-  apiService.exportAssessmentsCSV('detailed', assessments.length)
+  apiService.exportData('csv')
     .then(result => {
       console.log('CSV export completed:', result);
     })
@@ -173,7 +174,7 @@ const Header = ({ user, onLogout }) => {
           
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => window.open('http://localhost:8000/docs', '_blank')}
+              onClick={() => window.open(apiService.baseURL + '/docs', '_blank')}
               className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
             >
               <FileText className="w-4 h-4" />
@@ -237,28 +238,16 @@ const ChargebeeStyleDashboard = () => {
   const [currentAssessment, setCurrentAssessment] = useState(null);
   const [recentAssessments, setRecentAssessments] = useState([]);
   const [expandedSections, setExpandedSections] = useState({});
-  const [backendStatus, setBackendStatus] = useState('unknown');
 
   // Load data on component mount
   useEffect(() => {
-    checkBackendHealth();
     loadRecentAssessments();
   }, []);
-
-  // Backend health check
-  const checkBackendHealth = async () => {
-    try {
-      await apiService.checkHealth();
-      setBackendStatus('connected');
-    } catch (error) {
-      setBackendStatus('disconnected');
-    }
-  };
 
   // Load recent assessments
   const loadRecentAssessments = async () => {
     try {
-      const assessments = await apiService.getAllAssessments(10);
+      const assessments = await apiService.fetchAssessments();
       setRecentAssessments(assessments);
     } catch (error) {
       console.error('Failed to load assessments:', error);
@@ -273,8 +262,8 @@ const ChargebeeStyleDashboard = () => {
     setIsAssessing(true);
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
-      const result = await apiService.startAssessment(domainInput);
-      setCurrentAssessment(result.data);
+      const result = await apiService.createAssessment(domainInput);
+      setCurrentAssessment(result);
       setDomainInput('');
       setTimeout(loadRecentAssessments, 2000);
     } catch (error) {
@@ -291,9 +280,9 @@ const ChargebeeStyleDashboard = () => {
     setIsFetching(true);
     try {
       console.log(`🔍 Fetching existing assessment for: ${domainInput}`);
-      const result = await apiService.fetchDomainAssessment(domainInput);
-      if (result?.data) {
-        setCurrentAssessment(result.data);
+      const result = await apiService.getAssessment(domainInput);
+      if (result) {
+        setCurrentAssessment(result);
         setDomainInput('');
       } else {
         alert(`No existing assessment found for ${domainInput}. Try creating a new assessment instead.`);
@@ -359,18 +348,10 @@ const ChargebeeStyleDashboard = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Backend Status Alert */}
-        {backendStatus === 'disconnected' && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
-            <div className="flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2" />
-              <span>Backend connection failed. Please ensure your backend is running on port 8000.</span>
-            </div>
-            <button onClick={checkBackendHealth} className="text-red-600 hover:text-red-800 underline">
-              Retry
-            </button>
-          </div>
-        )}
+        {/* CONNECTION STATUS - ADDED HERE */}
+        <div className="mb-6">
+          <ConnectionStatus />
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-12 gap-6">
@@ -906,7 +887,7 @@ const RiskAssessmentsPage = () => {
 
   const loadAssessments = async () => {
     try {
-      const data = await apiService.getAllAssessments();
+      const data = await apiService.fetchAssessments();
       setAssessments(data);
     } catch (error) {
       console.error('Failed to load assessments:', error);
@@ -931,7 +912,8 @@ const RiskAssessmentsPage = () => {
 
   const handleBulkDelete = async (assessmentIds) => {
     try {
-      await apiService.bulkDeleteAssessments(assessmentIds);
+      // Call delete for each assessment
+      await Promise.all(assessmentIds.map(id => apiService.deleteAssessment(id)));
       setAssessments(assessments.filter(a => !assessmentIds.includes(a.id)));
     } catch (error) {
       alert('Failed to delete assessments');
@@ -1042,7 +1024,7 @@ const AnalyticsPage = () => {
       const riskStats = await apiService.getRiskDistribution();
       
       // Get all assessments for additional analytics
-      const allAssessments = await apiService.getAllAssessments(1000);
+      const allAssessments = await apiService.fetchAssessments();
       
       // Process assessments data
       const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
@@ -1059,7 +1041,7 @@ const AnalyticsPage = () => {
       
       // Fallback to processing assessments only
       try {
-        const allAssessments = await apiService.getAllAssessments(1000);
+        const allAssessments = await apiService.fetchAssessments();
         const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
         
         setAnalytics({
@@ -1263,14 +1245,14 @@ const AnalyticsPage = () => {
         </h3>
         <div className="flex items-center space-x-4">
           <button
-            onClick={() => apiService.exportAssessmentsCSV('summary')}
+            onClick={() => apiService.exportData('csv')}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <FileDown className="w-4 h-4" />
             <span>Export Summary CSV</span>
           </button>
           <button
-            onClick={() => apiService.exportAssessmentsCSV('detailed')}
+            onClick={() => apiService.exportData('csv')}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <FileDown className="w-4 h-4" />
@@ -1300,7 +1282,7 @@ const SettingsPage = () => {
 
   const checkApiHealth = async () => {
     try {
-      await apiService.checkHealth();
+      await apiService.checkBackendHealth();
       setApiHealth('connected');
     } catch (error) {
       setApiHealth('disconnected');
@@ -1344,7 +1326,7 @@ const SettingsPage = () => {
           </button>
         </div>
         <div className="mt-4 text-sm text-gray-500">
-          <p>API Endpoint: http://localhost:8000</p>
+          <p>API Endpoint: {apiService.baseURL}</p>
           <p>Last checked: {new Date().toLocaleTimeString()}</p>
         </div>
       </div>
@@ -1446,7 +1428,7 @@ const SettingsPage = () => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
-            onClick={() => window.open('http://localhost:8000/docs', '_blank')}
+            onClick={() => window.open(apiService.baseURL + '/docs', '_blank')}
             className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <FileText className="w-5 h-5 text-blue-600" />
@@ -1457,7 +1439,7 @@ const SettingsPage = () => {
           </button>
           
           <button
-            onClick={() => apiService.exportAssessmentsCSV('detailed')}
+            onClick={() => apiService.exportData('csv')}
             className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Download className="w-5 h-5 text-green-600" />
@@ -1504,7 +1486,7 @@ const SettingsPage = () => {
               <div className="text-sm text-gray-500">Contact the development team for support</div>
             </div>
             <button
-              onClick={() => window.open('mailto:bidya.sharma@chargebee.com?subject=KYB System Support', '_blank')}
+              onClick={() => window.open('mailto:bidya.bibhu@chargebee.com?subject=KYB System Support', '_blank')}
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Mail className="w-4 h-4" />
