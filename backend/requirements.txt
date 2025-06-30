@@ -1,4 +1,7 @@
-txt# Core FastAPI Framework
+# KYB System Requirements - Fixed for Python 3.13 Compatibility
+# Replace your entire requirements.txt with this content
+
+# Core FastAPI Framework
 fastapi==0.104.1
 uvicorn==0.24.0
 python-multipart==0.0.6
@@ -12,11 +15,22 @@ supabase==2.0.2
 # AI Integration
 google-generativeai==0.3.1
 
+# Data Processing - FIXED VERSIONS
+numpy==1.26.4
+
 # Web Scraping & Data Collection
 requests==2.31.0
 beautifulsoup4==4.12.2
+selenium==4.15.2
 lxml==4.9.3
 aiohttp==3.9.1
+playwright==1.40.0
+
+# Domain & Security Analysis
+python-whois==0.8.0
+dnspython==2.4.2
+pyopenssl==23.3.0
+cryptography==41.0.7
 
 # Async & Performance
 asyncio-throttle==1.0.2
@@ -25,12 +39,12 @@ asyncio-throttle==1.0.2
 pydantic==2.5.0
 python-dateutil==2.8.2
 typing-extensions==4.8.0
+bcrypt==4.1.2
 
 # Production Server
 gunicorn==21.2.0
+redis==5.0.1
 
-# Security
-cryptography==41.0.7
-
-# Basic data processing
-numpy==1.24.4
+# Development & Testing (optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
