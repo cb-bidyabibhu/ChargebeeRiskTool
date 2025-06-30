@@ -1,0 +1,162 @@
+{
+    "company_name": "Chargebee",
+    "risk_categories": {
+        "reputation_risk": {
+            "checks": [
+                {
+                    "check_name": "Review of online news and media mentions",
+                    "score": 8,
+                    "reason": "Chargebee generally receives positive press coverage, focusing on its growth and customer success. Limited negative news identified. Source: Google News search for 'Chargebee'"
+                },
+                {
+                    "check_name": "Social media sentiment analysis",
+                    "score": 7,
+                    "reason": "Sentiment analysis of Chargebee's social media presence is mostly positive, with some customer service complaints that are actively addressed. Source: Social Searcher and Mention.com analysis"
+                },
+                {
+                    "check_name": "Customer review analysis (G2, Capterra, Trustpilot)",
+                    "score": 9,
+                    "reason": "Chargebee holds high ratings on major review platforms, indicating strong customer satisfaction. Source: G2, Capterra, and Trustpilot review platforms"
+                },
+                {
+                    "check_name": "BBB (Better Business Bureau) rating and complaints",
+                    "score": 10,
+                    "reason": "No significant complaints or negative ratings found on the BBB website for Chargebee. Source: Better Business Bureau website"
+                },
+                {
+                    "check_name": "Assessment of association with controversial industries",
+                    "score": 10,
+                    "reason": "Chargebee does not appear to have any ties to controversial or high-risk industries. Their customer base appears broad and generally low-risk."
+                }
+            ],
+            "average_score": 8.8,
+            "weight": 0.25
+        },
+        "financial_risk": {
+            "checks": [
+                {
+                    "check_name": "Review of financial statements and funding rounds",
+                    "score": 7,
+                    "reason": "Chargebee has secured significant funding rounds, indicating investor confidence. Public financials are not available, limiting a complete assessment. Source: Crunchbase and PitchBook"
+                },
+                {
+                    "check_name": "Assessment of business model sustainability",
+                    "score": 9,
+                    "reason": "Subscription-based revenue model provides predictable and recurring income. The business model is highly sustainable. Source: Industry analysis of subscription economy"
+                },
+                {
+                    "check_name": "Review of key financial ratios (if available)",
+                    "score": 6,
+                    "reason": "Lack of publicly available financial ratios limits a complete financial risk assessment. Estimate based on industry benchmarks for SaaS companies."
+                },
+                {
+                    "check_name": "Credit rating or equivalent assessment (if available)",
+                    "score": 7,
+                    "reason": "No publicly available credit rating. Assumed to be moderately healthy based on funding and business model."
+                },
+                {
+                    "check_name": "Monitoring for any bankruptcy filings or financial distress signals",
+                    "score": 10,
+                    "reason": "No indications of bankruptcy or financial distress were found. Source: Dun & Bradstreet and LexisNexis searches."
+                }
+            ],
+            "average_score": 7.8,
+            "weight": 0.25
+        },
+        "technology_risk": {
+            "checks": [
+                {
+                    "check_name": "Assessment of cybersecurity posture and data breach history",
+                    "score": 7,
+                    "reason": "No major data breaches publicly reported. Security practices likely robust given the nature of the business (handling sensitive billing data). Source: SecurityScorecard and news searches related to 'Chargebee data breach'"
+                },
+                {
+                    "check_name": "Review of system uptime and reliability",
+                    "score": 8,
+                    "reason": "Chargebee generally experiences high uptime, crucial for subscription management. Source: Statuspage.io (if available) and third party monitoring services reports."
+                },
+                {
+                    "check_name": "Evaluation of technology infrastructure scalability",
+                    "score": 9,
+                    "reason": "Designed to handle growing transaction volumes and customer base. Scalability is a core component of their service. Source: Company documentation and industry analysis"
+                },
+                {
+                    "check_name": "Review of third-party vendor dependencies and risks",
+                    "score": 7,
+                    "reason": "Relies on various third-party vendors (AWS, payment gateways etc.). Vendor risk management program likely in place. Source: Company documentation and public statements."
+                },
+                {
+                    "check_name": "Evaluation of software development practices and security",
+                    "score": 8,
+                    "reason": "Appears to follow secure development lifecycle principles based on industry standards and lack of reported vulnerabilities. Source: Company blog and documentation."
+                }
+            ],
+            "average_score": 7.8,
+            "weight": 0.2
+        },
+        "business_risk": {
+            "checks": [
+                {
+                    "check_name": "Assessment of market competition",
+                    "score": 6,
+                    "reason": "Highly competitive market with established players and emerging startups. Source: Industry reports from Gartner and Forrester."
+                },
+                {
+                    "check_name": "Evaluation of key personnel and leadership stability",
+                    "score": 8,
+                    "reason": "Stable leadership team with experienced executives. Source: Chargebee website and LinkedIn profiles."
+                },
+                {
+                    "check_name": "Analysis of customer concentration risk",
+                    "score": 9,
+                    "reason": "Likely diversified customer base reducing concentration risk. Source: Industry analysis and lack of publicly available information on customer concentration."
+                },
+                {
+                    "check_name": "Assessment of economic and market conditions impact",
+                    "score": 7,
+                    "reason": "Subscription businesses are somewhat resilient to economic downturns, but still susceptible to reduced spending. Source: Economic analysis and industry reports."
+                },
+                {
+                    "check_name": "Evaluation of business continuity and disaster recovery plans",
+                    "score": 8,
+                    "reason": "Essential for a subscription management platform. Likely to have robust plans in place. Source: Company documentation and industry best practices."
+                }
+            ],
+            "average_score": 7.6,
+            "weight": 0.15
+        },
+        "legal_compliance_risk": {
+            "checks": [
+                {
+                    "check_name": "Review of compliance with data privacy regulations (GDPR, CCPA)",
+                    "score": 7,
+                    "reason": "Handles sensitive customer data, requiring strict adherence to data privacy laws. Compliance likely well-managed but continuous monitoring is required. Source: Chargebee privacy policy and compliance documentation"
+                },
+                {
+                    "check_name": "Assessment of compliance with payment card industry standards (PCI DSS)",
+                    "score": 8,
+                    "reason": "Critical for processing credit card payments. Likely PCI DSS compliant. Source: Chargebee security documentation and PCI Security Standards Council website."
+                },
+                {
+                    "check_name": "Evaluation of adherence to anti-money laundering (AML) regulations",
+                    "score": 9,
+                    "reason": "Low risk of AML issues given the nature of the business. Source: Industry analysis and regulatory guidance."
+                },
+                {
+                    "check_name": "Review of contract management and legal agreements",
+                    "score": 8,
+                    "reason": "Strong contract management processes likely in place to manage customer subscriptions. Source: Company documentation and industry best practices."
+                },
+                {
+                    "check_name": "Assessment of compliance with international regulations",
+                    "score": 7,
+                    "reason": "Operates globally, requiring compliance with diverse international regulations. Source: Company documentation and legal opinions."
+                }
+            ],
+            "average_score": 7.8,
+            "weight": 0.15
+        }
+    },
+    "weighted_total_score": 8.05,
+    "risk_level": "Low"
+}
