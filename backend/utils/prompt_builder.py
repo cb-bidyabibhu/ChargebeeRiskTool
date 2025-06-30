@@ -1,358 +1,119 @@
 # backend/utils/enhanced_prompt_builder.py
-# ENHANCED VERSION - Add this to your existing prompt_builder.py or replace it
+# ADD THIS FILE to your utils folder to enhance your existing prompt
 
 import json
 from typing import Dict, List, Optional
 from datetime import datetime
 
-class Enhanced2025PromptBuilder:
+def build_enhanced_2025_prompt(company_name: str, domain: str, industry_category: str, scraped_data: Dict) -> str:
     """
-    Enhanced prompt builder with 2025 compliance standards and real-time data integration
+    Enhanced 2025 compliance prompt that integrates with your existing system
+    This enhances your current prompt_builder.py with advanced compliance standards
     """
     
-    def __init__(self):
-        self.base_template = self._load_enhanced_template()
-        self.compliance_standards = self._load_2025_compliance_standards()
-        self.industry_intelligence = self._load_industry_intelligence()
+    # Build real-time data context from your scrapers
+    real_time_context = build_scraped_data_context(scraped_data)
     
-    def _load_enhanced_template(self) -> str:
-        return """
-You are conducting a comprehensive KYB (Know Your Business) risk assessment for {company_name} (Domain: {domain}) that meets 2025 enhanced due diligence standards.
+    # Get industry-specific intelligence
+    industry_intel = get_industry_specific_requirements(industry_category)
+    
+    enhanced_prompt = f"""
+You are conducting a comprehensive KYB (Know Your Business) risk assessment for {company_name} (Domain: {domain}) that meets 2025 enhanced due diligence standards for Chargebee.
 
-{real_time_data_context}
+{real_time_context}
 
-{compliance_requirements_section}
+## 🎯 2025 ENHANCED COMPLIANCE FRAMEWORK
 
-{industry_specific_intelligence}
+### 1. REGULATORY COMPLIANCE RISK (30% Weight) - CRITICAL PRIORITY
+**Ultimate Beneficial Owner (UBO) Analysis:**
+- Identify all individuals with 25%+ ownership or control (EU/Global Standard)
+- Map complete ownership structure including holding companies
+- Flag complex or opaque ownership arrangements
+- Assess transparency of beneficial ownership disclosure
 
-## 🔍 2025 ENHANCED ASSESSMENT FRAMEWORK
+**Sanctions & Watchlist Screening:**
+- Screen against OFAC Specially Designated Nationals (SDN) list
+- Cross-reference EU, UN, and other international sanctions
+- Check for politically exposed persons (PEPs) in ownership/management
+- Evaluate sanctions risk and compliance history
 
-### 1. REGULATORY COMPLIANCE RISK (30% Weight)
-**Enhanced Due Diligence Requirements:**
-- **Ultimate Beneficial Owner (UBO) Analysis**: Identify individuals with 25%+ ownership/control
-- **Sanctions & Watchlist Screening**: Cross-reference OFAC, EU, UN sanctions lists
-- **PEP (Politically Exposed Persons) Screening**: Flag high-risk political connections
-- **Business Registration Verification**: Confirm legitimate incorporation and licenses
-- **Industry-Specific Compliance**: Verify sector-specific regulatory requirements
-- **AML/CFT Assessment**: Evaluate anti-money laundering controls
+**Business Registration & Licensing:**
+- Verify incorporation status with Secretary of State records
+- Confirm business registration authenticity and current status
+- Validate required industry-specific licenses and permits
+- Check for regulatory compliance violations or enforcement actions
+
+{industry_intel}
 
 ### 2. FINANCIAL TRANSPARENCY RISK (25% Weight)
-**Financial Intelligence Analysis:**
-- **SEC/Regulatory Filings**: Analyze public financial disclosures
-- **Ownership Structure**: Map complex corporate structures and beneficial ownership
-- **Capital Source Verification**: Assess legitimacy of funding sources
-- **Financial Stability**: Evaluate creditworthiness and financial health
-- **Related Party Transactions**: Identify potential conflicts of interest
+**SEC/Financial Filings Analysis:**
+- Review SEC EDGAR filings for public companies
+- Analyze financial disclosures and transparency
+- Assess ownership structure complexity
+- Evaluate related party transactions and conflicts
+
+**Capital Source Verification:**
+- Assess legitimacy and source of business funding
+- Review investment history and investor profiles
+- Check for unexplained wealth or suspicious funding sources
+- Evaluate financial sustainability and business model
 
 ### 3. OPERATIONAL LEGITIMACY RISK (20% Weight)
-**Business Verification:**
-- **Physical Presence**: Verify legitimate business address and operations
-- **Employee Verification**: Confirm actual workforce and organizational structure
-- **Business Activity**: Validate operations match stated business purpose
-- **Customer Base**: Assess legitimacy of customer relationships
-- **Supply Chain**: Verify business partnerships and vendor relationships
+**Physical & Digital Presence:**
+- Verify legitimate business address and physical operations
+- Confirm website authenticity and business activity
+- Assess employee count and organizational structure
+- Validate operational substance vs. shell company indicators
+
+**Business Activity Verification:**
+- Confirm operations match stated business purpose
+- Assess customer base legitimacy and geographic distribution
+- Review supply chain and vendor relationships
+- Evaluate business partnerships and professional networks
 
 ### 4. TECHNOLOGY SECURITY RISK (15% Weight)
 **Cybersecurity & Data Protection:**
-- **Security Posture**: Assess cybersecurity controls and certifications
-- **Data Protection**: Verify GDPR, CCPA, and privacy compliance
-- **Infrastructure Security**: Evaluate technical security measures
-- **Third-Party Risk**: Assess vendor and integration security
-- **Incident History**: Review past security breaches and response
+- Assess SSL/TLS implementation and security certificates
+- Review data protection policies (GDPR, CCPA compliance)
+- Evaluate cybersecurity posture and incident history
+- Check for security certifications (SOC 2, ISO 27001)
 
 ### 5. REPUTATIONAL INTELLIGENCE RISK (10% Weight)
-**Public Perception & Media Analysis:**
-- **Adverse Media**: Screen for negative news and investigations
-- **Social Media Intelligence**: Analyze public sentiment and presence
-- **Customer Satisfaction**: Evaluate reviews and customer feedback
-- **Industry Standing**: Assess reputation within business sector
+**Adverse Media & Public Perception:**
+- Screen for negative news, investigations, or controversies
+- Analyze social media presence and public sentiment
+- Review customer complaints and business disputes
+- Assess overall industry reputation and standing
 
-{enhanced_scoring_instructions}
+## 📊 ENHANCED SCORING METHODOLOGY (2025 Standards)
 
-{cross_validation_requirements}
+### Scoring Scale (0-10 per check):
+- **8-10**: Excellent - Strong compliance, low risk, transparent operations
+- **6-7**: Good - Generally positive with minor concerns requiring monitoring
+- **4-5**: Fair - Mixed indicators, moderate risk requiring enhanced due diligence
+- **2-3**: Poor - Significant concerns, high risk requiring immediate attention
+- **0-1**: Critical - Major red flags, very high risk, recommend rejection
 
-{json_output_structure}
-"""
-    
-    def _load_2025_compliance_standards(self) -> str:
-        return """
-## 🛡️ 2025 COMPLIANCE STANDARDS
+### Critical Risk Multipliers:
+- **Sanctions Matches**: Automatic 0 score for any category with matches
+- **PEP Exposure**: Apply 1.5x penalty for high-risk political connections
+- **Shell Company Indicators**: Apply 1.3x penalty for lack of substance
+- **High-Risk Jurisdictions**: Apply 1.2x penalty for operations in sanctioned countries
+- **Complex Ownership**: Apply 1.2x penalty for unclear beneficial ownership
 
-### Critical Screening Requirements:
-1. **OFAC Sanctions Screening**: Mandatory for all entities and beneficial owners
-2. **PEP Database Screening**: Screen against global PEP databases
-3. **Adverse Media Monitoring**: Comprehensive negative news screening
-4. **UBO Identification**: 25% ownership threshold per global standards
-5. **Enhanced Due Diligence**: Risk-based approach with additional verification
+### Data Quality Weighting:
+- **High-confidence data** (government sources, verified records): Full weight
+- **Medium-confidence data** (commercial databases, third-party): 0.8x weight  
+- **Low-confidence data** (unverified sources, social media): 0.5x weight
 
-### Red Flag Indicators:
-- Complex ownership structures with multiple jurisdictions
-- Recent incorporation with immediate high-value transactions
-- Beneficial owners in high-risk countries
-- Lack of legitimate business operations
-- Inconsistent business information across sources
-- Connections to sanctioned entities or PEPs
-- Significant adverse media coverage
-- Shell company characteristics
-
-### Documentation Requirements:
-- Beneficial ownership charts and corporate structure
-- Source of funds and wealth documentation
-- Business registration and licensing verification
-- Risk mitigation measures for identified concerns
-"""
-    
-    def _load_industry_intelligence(self) -> Dict[str, str]:
-        return {
-            "fintech_financial": """
-## 🏦 FINTECH/FINANCIAL SECTOR INTELLIGENCE
-
-### Critical Compliance Areas:
-- **Banking Licenses**: Verify required financial services licenses
-- **PCI DSS Compliance**: Payment card industry security standards
-- **Capital Requirements**: Minimum capital and reserve requirements
-- **AML Program**: Anti-money laundering program adequacy
-- **GDPR/Privacy**: Customer data protection compliance
-- **Regulatory Reporting**: Timely and accurate regulatory submissions
-
-### Key Risk Indicators:
-- Unlicensed financial operations
-- Inadequate capital reserves
-- Poor AML/KYC controls
-- Data protection violations
-- Regulatory enforcement actions
-- High customer complaint ratios
-
-### Enhanced Due Diligence:
-- Review banking relationships and correspondent accounts
-- Verify customer onboarding procedures
-- Assess transaction monitoring systems
-- Evaluate cybersecurity frameworks
-""",
-            "ecommerce_retail": """
-## 🛒 E-COMMERCE/RETAIL SECTOR INTELLIGENCE
-
-### Critical Compliance Areas:
-- **Consumer Protection**: Return policies, terms of service
-- **Payment Security**: PCI compliance for payment processing
-- **Product Liability**: Product safety and recall procedures
-- **Tax Compliance**: Sales tax collection and remittance
-- **Privacy Policies**: Customer data handling practices
-- **Advertising Standards**: Truth in advertising compliance
-
-### Key Risk Indicators:
-- High chargeback rates
-- Customer service complaints
-- Product safety violations
-- Deceptive advertising practices
-- Poor return/refund policies
-- Inadequate data security
-
-### Enhanced Due Diligence:
-- Verify supplier relationships and product sourcing
-- Review customer review authenticity
-- Assess inventory management systems
-- Evaluate customer service capabilities
-""",
-            "software_saas": """
-## 💻 SOFTWARE/SaaS SECTOR INTELLIGENCE
-
-### Critical Compliance Areas:
-- **Data Protection**: GDPR, CCPA compliance implementation
-- **Security Certifications**: SOC 2, ISO 27001 certifications
-- **Privacy Policies**: Comprehensive data handling disclosure
-- **Terms of Service**: Clear service level agreements
-- **API Security**: Secure integration and access controls
-- **Intellectual Property**: Software licensing and IP protection
-
-### Key Risk Indicators:
-- Data breaches or security incidents
-- Lack of security certifications
-- Poor API security practices
-- Unclear data retention policies
-- IP infringement issues
-- Service availability problems
-
-### Enhanced Due Diligence:
-- Review security audit reports
-- Verify data center security and compliance
-- Assess software development practices
-- Evaluate third-party integrations
-"""
-        }
-    
-    def build_enhanced_assessment_prompt(self, company_name: str, domain: str, 
-                                       industry_category: str, scraped_data: Dict) -> str:
-        """Build comprehensive 2025-compliant assessment prompt"""
-        
-        # Build real-time data context
-        real_time_context = self._build_real_time_data_context(scraped_data)
-        
-        # Get industry-specific intelligence
-        industry_intel = self.industry_intelligence.get(
-            industry_category, 
-            self.industry_intelligence.get("software_saas", "")
-        )
-        
-        # Build enhanced scoring instructions
-        scoring_instructions = self._build_enhanced_scoring_instructions()
-        
-        # Build cross-validation requirements
-        cross_validation = self._build_cross_validation_requirements()
-        
-        # Build JSON structure
-        json_structure = self._build_enhanced_json_structure(company_name, domain, industry_category)
-        
-        # Combine all sections
-        complete_prompt = self.base_template.format(
-            company_name=company_name,
-            domain=domain,
-            real_time_data_context=real_time_context,
-            compliance_requirements_section=self.compliance_standards,
-            industry_specific_intelligence=industry_intel,
-            enhanced_scoring_instructions=scoring_instructions,
-            cross_validation_requirements=cross_validation,
-            json_output_structure=json_structure
-        )
-        
-        return complete_prompt
-    
-    def _build_real_time_data_context(self, scraped_data: Dict) -> str:
-        """Build context section from real-time scraped data"""
-        if not scraped_data:
-            return "## 📊 REAL-TIME DATA: No scraped data available - conduct assessment based on publicly available information"
-        
-        context = "## 📊 REAL-TIME SCRAPED DATA ANALYSIS:\n"
-        
-        # Categorize and format scraped data
-        security_data = []
-        business_data = []
-        compliance_data = []
-        
-        for source, data in scraped_data.items():
-            if source in ["collection_timestamp", "domain", "industry_category"]:
-                continue
-                
-            if isinstance(data, dict) and "error" not in data:
-                formatted_item = self._format_scraped_data_item(source, data)
-                if formatted_item:
-                    if source in ["google_safe_browsing", "ssl_org_report", "ipvoid", "nordvpn_malicious"]:
-                        security_data.append(formatted_item)
-                    elif source in ["whois_data", "social_presence", "traffic_volume", "tranco_ranking"]:
-                        business_data.append(formatted_item)
-                    elif source in ["privacy_terms"]:
-                        compliance_data.append(formatted_item)
-        
-        if security_data:
-            context += "\n### 🔒 SECURITY INTELLIGENCE:\n" + "\n".join(security_data)
-        if business_data:
-            context += "\n### 🏢 BUSINESS INTELLIGENCE:\n" + "\n".join(business_data)
-        if compliance_data:
-            context += "\n### ⚖️ COMPLIANCE DATA:\n" + "\n".join(compliance_data)
-        
-        context += f"\n\n**Data Collection Timestamp**: {scraped_data.get('collection_timestamp', 'Unknown')}"
-        context += f"\n**Sources Collected**: {len([k for k in scraped_data.keys() if not k.startswith('collection_')])}"
-        
-        return context
-    
-    def _format_scraped_data_item(self, source: str, data: Dict) -> str:
-        """Format individual scraped data items for prompt context"""
-        if source == "google_safe_browsing":
-            status = data.get('Current Status', 'Unknown')
-            return f"- **Google Safe Browsing**: {status}"
-        elif source == "ssl_org_report":
-            summary = data.get('report_summary', {})
-            grade = summary.get('ssl_grade', 'Unknown')
-            return f"- **SSL Security Grade**: {grade} (SSL Labs Assessment)"
-        elif source == "whois_data":
-            created = data.get('creation_date', 'Unknown')
-            registrar = data.get('registrar', 'Unknown')
-            return f"- **Domain Registration**: Created {created}, Registrar: {registrar}"
-        elif source == "social_presence":
-            try:
-                if isinstance(data, str):
-                    social_data = json.loads(data)
-                else:
-                    social_data = data
-                linkedin = social_data.get('social_presence', {}).get('linkedin', {})
-                employees = social_data.get('employee_count', 'Unknown')
-                return f"- **LinkedIn Presence**: Active: {linkedin.get('presence', False)}, Employees: {employees}"
-            except:
-                return f"- **Social Presence**: Data available"
-        elif source == "privacy_terms":
-            privacy = data.get('privacy_policy_present', False)
-            terms = data.get('terms_of_service_present', False)
-            return f"- **Legal Documentation**: Privacy Policy: {privacy}, Terms of Service: {terms}"
-        elif source == "ipvoid":
-            detections = data.get('detections_count', {})
-            detected = detections.get('detected', 0) if isinstance(detections, dict) else 0
-            return f"- **IP Blacklist Status**: {detected} detections found"
-        elif source == "tranco_ranking":
-            rank = data.get('Tranco Rank', 'Unknown')
-            return f"- **Web Ranking**: Tranco #{rank}"
-        elif source == "traffic_volume":
-            traffic = data.get('last_month_traffic', 0)
-            return f"- **Monthly Traffic**: {traffic} visits"
-        else:
-            return f"- **{source.replace('_', ' ').title()}**: Data available"
-    
-    def _build_enhanced_scoring_instructions(self) -> str:
-        return """
-## 📊 ENHANCED SCORING METHODOLOGY
-
-### Scoring Scale (0-10):
-- **8-10**: Excellent - Strong positive indicators, low risk
-- **6-7**: Good - Generally positive with minor concerns
-- **4-5**: Fair - Mixed indicators, moderate risk
-- **2-3**: Poor - Significant concerns, high risk
-- **0-1**: Critical - Major red flags, very high risk
-
-### Evidence-Based Scoring:
-1. **Primary Evidence**: Use real-time scraped data as primary source
-2. **Secondary Evidence**: Use publicly available information for verification
-3. **Cross-Validation**: Compare multiple sources for consistency
-4. **Confidence Levels**: Assign based on data quality and recency
-
-### Risk Multipliers:
-- **High-Risk Industries**: Apply 1.2x multiplier to negative findings
-- **High-Risk Jurisdictions**: Apply 1.5x multiplier for sanctioned countries
-- **Complex Ownership**: Apply 1.3x multiplier for unclear ownership structures
-- **Recent Incorporation**: Apply 1.2x multiplier for companies <2 years old
-
-### Special Considerations:
-- **Startup/New Companies**: Use alternative verification methods
-- **Private Companies**: Focus on available public information
-- **International Companies**: Consider jurisdiction-specific requirements
-"""
-    
-    def _build_cross_validation_requirements(self) -> str:
-        return """
 ## 🔍 CROSS-VALIDATION REQUIREMENTS
 
-### Data Validation Protocol:
-1. **Source Reliability**: Prioritize government/regulatory sources
-2. **Recency Check**: Flag data older than 12 months
-3. **Consistency Check**: Identify conflicts between sources
-4. **Completeness Assessment**: Note gaps in available information
+Use the real-time scraped data as PRIMARY evidence. Cross-reference findings across multiple sources. Flag any inconsistencies between:
+- Business registration vs. operational reality
+- Stated ownership vs. actual control
+- Public statements vs. regulatory filings
+- Online presence vs. physical operations
 
-### Quality Indicators:
-- **High Quality**: 3+ independent sources, recent data, consistent findings
-- **Medium Quality**: 2 independent sources, some data gaps
-- **Low Quality**: Single source, outdated data, or conflicting information
-
-### Confidence Scoring:
-- **High Confidence (0.8-1.0)**: Multiple reliable sources, recent data
-- **Medium Confidence (0.5-0.7)**: Limited sources, some uncertainty
-- **Low Confidence (0.0-0.4)**: Insufficient data, significant gaps
-
-### Red Flag Protocols:
-- **Immediate Escalation**: Sanctions matches, PEP connections
-- **Enhanced Review**: Complex ownership, high-risk jurisdictions
-- **Standard Review**: Minor inconsistencies, data gaps
-"""
-    
-    def _build_enhanced_json_structure(self, company_name: str, domain: str, industry: str) -> str:
-        return f"""
 ## 📋 REQUIRED JSON OUTPUT STRUCTURE
 
 Return ONLY valid JSON in this exact format:
@@ -362,7 +123,7 @@ Return ONLY valid JSON in this exact format:
   "domain": "{domain}",
   "assessment_date": "{datetime.now().strftime('%Y-%m-%d')}",
   "assessment_type": "enhanced_2025_compliance",
-  "industry_category": "{industry}",
+  "industry_category": "{industry_category}",
   "compliance_version": "2025.1",
   
   "risk_categories": {{
@@ -371,91 +132,78 @@ Return ONLY valid JSON in this exact format:
         {{
           "check_name": "UBO Identification & Verification",
           "score": 0,
-          "reason": "Analysis of ultimate beneficial ownership structure",
-          "insight": "Key findings about ownership transparency",
-          "source": "Corporate registries and ownership data",
+          "reason": "Analysis of beneficial ownership transparency based on available data",
+          "insight": "Key findings about ownership structure and transparency",
+          "source": "Corporate registries, Secretary of State records, business filings",
           "public_data_available": true,
           "confidence_level": "high",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "25% ownership threshold analysis per 2025 standards"
         }},
         {{
           "check_name": "Sanctions & Watchlist Screening",
           "score": 0,
-          "reason": "OFAC, EU, UN sanctions screening results",
-          "insight": "Sanctions compliance status",
-          "source": "Government sanctions databases",
+          "reason": "OFAC, EU, UN sanctions screening results for entity and beneficial owners",
+          "insight": "Sanctions compliance status and risk assessment",
+          "source": "OFAC SDN list, EU consolidated list, UN sanctions database",
           "public_data_available": true,
           "confidence_level": "high",
-          "red_flags": []
-        }},
-        {{
-          "check_name": "PEP (Politically Exposed Persons) Screening",
-          "score": 0,
-          "reason": "Political exposure risk assessment",
-          "insight": "Political connections analysis",
-          "source": "PEP databases and political records",
-          "public_data_available": true,
-          "confidence_level": "medium",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Comprehensive sanctions screening completed"
         }},
         {{
           "check_name": "Business Registration & Licensing",
           "score": 0,
-          "reason": "Corporate registration and licensing verification",
-          "insight": "Legal entity status and compliance",
-          "source": "Secretary of State and licensing databases",
+          "reason": "Corporate registration status and licensing compliance verification",
+          "insight": "Legal entity standing and regulatory compliance",
+          "source": "Secretary of State databases, business registration authorities",
           "public_data_available": true,
-          "confidence_level": "high",
-          "red_flags": []
+          "confidence_level": "medium",
+          "red_flags": [],
+          "compliance_notes": "Business registration authenticity verified"
         }},
         {{
           "check_name": "Industry-Specific Compliance",
           "score": 0,
-          "reason": "Sector-specific regulatory compliance",
-          "insight": "Industry regulation adherence",
-          "source": "Industry regulators and compliance databases",
+          "reason": "Sector-specific regulatory requirements and compliance history",
+          "insight": "Industry regulation adherence assessment",
+          "source": "Industry regulators, licensing authorities, compliance databases",
           "public_data_available": true,
           "confidence_level": "medium",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Industry-specific requirements evaluated"
         }}
       ],
       "average_score": 0.0,
       "weight": 0.30,
       "category_risk_level": "Medium",
-      "compliance_status": "Under Review"
+      "compliance_status": "Under Review",
+      "critical_findings": []
     }},
     
     "financial_transparency_risk": {{
       "checks": [
         {{
-          "check_name": "SEC & Regulatory Filings Analysis",
+          "check_name": "SEC & Financial Filings Analysis",
           "score": 0,
-          "reason": "Public financial disclosure review",
-          "insight": "Financial transparency assessment",
-          "source": "SEC EDGAR and regulatory databases",
+          "reason": "Public financial disclosure review and transparency assessment",
+          "insight": "Financial reporting quality and transparency evaluation",
+          "source": "SEC EDGAR database, financial regulatory filings",
           "public_data_available": true,
           "confidence_level": "high",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Financial disclosure transparency assessed"
         }},
         {{
-          "check_name": "Ownership Structure Analysis",
+          "check_name": "Ownership Structure Complexity",
           "score": 0,
-          "reason": "Corporate structure complexity assessment",
-          "insight": "Ownership transparency evaluation",
-          "source": "Corporate filings and ownership records",
+          "reason": "Corporate structure analysis for transparency and legitimacy",
+          "insight": "Ownership structure risk evaluation",
+          "source": "Corporate filings, beneficial ownership records",
           "public_data_available": true,
           "confidence_level": "medium",
-          "red_flags": []
-        }},
-        {{
-          "check_name": "Financial Stability Assessment",
-          "score": 0,
-          "reason": "Financial health and creditworthiness",
-          "insight": "Financial stability indicators",
-          "source": "Financial reports and credit databases",
-          "public_data_available": false,
-          "confidence_level": "low",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Corporate structure complexity evaluated"
         }}
       ],
       "average_score": 0.0,
@@ -466,24 +214,15 @@ Return ONLY valid JSON in this exact format:
     "operational_legitimacy_risk": {{
       "checks": [
         {{
-          "check_name": "Business Address & Physical Presence",
+          "check_name": "Business Substance Verification",
           "score": 0,
-          "reason": "Physical location and operations verification",
-          "insight": "Operational legitimacy assessment",
-          "source": "Address verification and business directories",
+          "reason": "Physical presence and operational reality assessment",
+          "insight": "Business legitimacy and operational substance evaluation",
+          "source": "Address verification, business directories, operational data",
           "public_data_available": true,
           "confidence_level": "medium",
-          "red_flags": []
-        }},
-        {{
-          "check_name": "Employee & Organizational Verification",
-          "score": 0,
-          "reason": "Workforce and organizational structure",
-          "insight": "Operational scale and legitimacy",
-          "source": "LinkedIn and employment data",
-          "public_data_available": true,
-          "confidence_level": "medium",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Operational substance verified against shell company indicators"
         }}
       ],
       "average_score": 0.0,
@@ -494,14 +233,15 @@ Return ONLY valid JSON in this exact format:
     "technology_security_risk": {{
       "checks": [
         {{
-          "check_name": "Cybersecurity Posture Assessment",
+          "check_name": "Cybersecurity & Data Protection",
           "score": 0,
-          "reason": "Security controls and certifications",
-          "insight": "Cybersecurity maturity level",
-          "source": "Security certifications and assessments",
+          "reason": "Security controls, certifications, and data protection compliance",
+          "insight": "Technology security posture assessment",
+          "source": "Security certifications, SSL analysis, privacy policy review",
           "public_data_available": true,
           "confidence_level": "high",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Security measures and data protection evaluated"
         }}
       ],
       "average_score": 0.0,
@@ -512,14 +252,15 @@ Return ONLY valid JSON in this exact format:
     "reputational_intelligence_risk": {{
       "checks": [
         {{
-          "check_name": "Adverse Media Screening",
+          "check_name": "Adverse Media & Reputation Screening",
           "score": 0,
-          "reason": "Negative news and media analysis",
-          "insight": "Public reputation assessment",
-          "source": "News databases and media monitoring",
+          "reason": "Negative news screening and reputation analysis",
+          "insight": "Public reputation and media coverage assessment",
+          "source": "News databases, media monitoring, public records",
           "public_data_available": true,
           "confidence_level": "high",
-          "red_flags": []
+          "red_flags": [],
+          "compliance_notes": "Comprehensive adverse media screening completed"
         }}
       ],
       "average_score": 0.0,
@@ -538,6 +279,7 @@ Return ONLY valid JSON in this exact format:
     "pep_exposure": false,
     "high_risk_jurisdiction": false,
     "enhanced_due_diligence_required": false,
+    "shell_company_indicators": 0,
     "compliance_concerns": [],
     "data_sources_count": 0,
     "assessment_timestamp": "{datetime.now().isoformat()}",
@@ -548,26 +290,146 @@ Return ONLY valid JSON in this exact format:
     "immediate_actions": [],
     "enhanced_monitoring": [],
     "compliance_requirements": [],
-    "risk_mitigation": []
+    "risk_mitigation": [],
+    "approval_status": "pending_review"
   }}
 }}
+
+CRITICAL: Base your analysis strictly on the provided real-time data. Use the scraped data as PRIMARY evidence for all scores and findings. If critical information is missing, clearly state what additional data is needed for complete 2025 compliance assessment.
 """
+    
+    return enhanced_prompt
 
-# Utility function to integrate with existing system
-def build_enhanced_2025_prompt(company_name: str, domain: str, 
-                              industry_category: str, scraped_data: Dict) -> str:
-    """Build enhanced 2025-compliant prompt - use this to replace your existing prompt builder"""
-    builder = Enhanced2025PromptBuilder()
-    return builder.build_enhanced_assessment_prompt(company_name, domain, industry_category, scraped_data)
+def build_scraped_data_context(scraped_data: Dict) -> str:
+    """Format your existing scraped data for the enhanced prompt"""
+    if not scraped_data:
+        return "## 📊 REAL-TIME DATA: No scraped data available - assessment based on publicly available information"
+    
+    context = "## 📊 REAL-TIME SCRAPED DATA ANALYSIS:\n"
+    
+    # Process your existing scrapers
+    security_findings = []
+    business_findings = []
+    compliance_findings = []
+    
+    for source, data in scraped_data.items():
+        if source in ["collection_timestamp", "domain", "industry_category"]:
+            continue
+            
+        if isinstance(data, dict) and "error" not in data:
+            formatted_item = format_scraper_data(source, data)
+            if formatted_item:
+                if source in ["google_safe_browsing", "ssl_org_report", "ipvoid", "nordvpn_malicious"]:
+                    security_findings.append(formatted_item)
+                elif source in ["whois_data", "social_presence", "traffic_volume", "tranco_ranking"]:
+                    business_findings.append(formatted_item)
+                elif source in ["privacy_terms", "ofac_sanctions"]:
+                    compliance_findings.append(formatted_item)
+    
+    if security_findings:
+        context += "\n### 🔒 SECURITY INTELLIGENCE:\n" + "\n".join(security_findings)
+    if business_findings:
+        context += "\n### 🏢 BUSINESS INTELLIGENCE:\n" + "\n".join(business_findings)
+    if compliance_findings:
+        context += "\n### ⚖️ COMPLIANCE DATA:\n" + "\n".join(compliance_findings)
+    
+    context += f"\n\n**Data Collection Timestamp**: {scraped_data.get('collection_timestamp', 'Unknown')}"
+    context += f"\n**Sources Analyzed**: {len([k for k in scraped_data.keys() if not k.startswith('collection_')])}"
+    
+    return context
 
-# Test the enhanced prompt
-if __name__ == "__main__":
-    test_data = {
-        "https_check": {"has_https": True, "protocol": "HTTPS"},
-        "google_safe_browsing": {"Current Status": "No unsafe content found"},
-        "social_presence": '{"social_presence": {"linkedin": {"presence": true}}, "employee_count": "1000-5000"}'
+def format_scraper_data(source: str, data: Dict) -> str:
+    """Format individual scraper results for prompt context"""
+    if source == "ofac_sanctions":
+        sanctions = data.get('sanctions_screening', {})
+        status = sanctions.get('status', 'UNKNOWN')
+        matches = sanctions.get('total_matches', 0)
+        return f"- **OFAC Sanctions Screening**: Status: {status}, Matches: {matches}"
+    elif source == "google_safe_browsing":
+        status = data.get('Current Status', 'Unknown')
+        return f"- **Google Safe Browsing**: {status}"
+    elif source == "ssl_org_report":
+        summary = data.get('report_summary', {})
+        grade = summary.get('ssl_grade', 'Unknown')
+        return f"- **SSL Security Grade**: {grade} (SSL Labs Assessment)"
+    elif source == "whois_data":
+        created = data.get('creation_date', 'Unknown')
+        registrar = data.get('registrar', 'Unknown')
+        return f"- **Domain Registration**: Created {created}, Registrar: {registrar}"
+    elif source == "social_presence":
+        try:
+            if isinstance(data, str):
+                social_data = json.loads(data)
+            else:
+                social_data = data
+            linkedin = social_data.get('social_presence', {}).get('linkedin', {})
+            employees = social_data.get('employee_count', 'Unknown')
+            return f"- **LinkedIn Presence**: Active: {linkedin.get('presence', False)}, Employees: {employees}"
+        except:
+            return f"- **Social Presence**: Data available"
+    elif source == "privacy_terms":
+        privacy = data.get('privacy_policy_present', False)
+        terms = data.get('terms_of_service_present', False)
+        return f"- **Legal Documentation**: Privacy Policy: {privacy}, Terms of Service: {terms}"
+    else:
+        return f"- **{source.replace('_', ' ').title()}**: Data collected"
+
+def get_industry_specific_requirements(industry_category: str) -> str:
+    """Get industry-specific compliance requirements"""
+    industry_requirements = {
+        "fintech_financial": """
+**FINTECH/FINANCIAL SECTOR ENHANCED REQUIREMENTS:**
+- **Banking License Verification**: Check required financial services licenses
+- **PCI DSS Compliance**: Payment card industry security requirements
+- **Capital Adequacy**: Minimum capital and reserve requirements
+- **AML/BSA Program**: Anti-money laundering controls assessment
+- **Consumer Protection**: CFPB compliance and consumer safeguards
+- **Data Security**: Enhanced cybersecurity and data protection standards
+""",
+        "ecommerce_retail": """
+**E-COMMERCE/RETAIL SECTOR ENHANCED REQUIREMENTS:**
+- **Merchant Account Verification**: Payment processing legitimacy
+- **Consumer Protection**: Return policies and customer service standards
+- **Product Safety**: Product liability and safety compliance
+- **Tax Compliance**: Sales tax collection and remittance verification
+- **Supply Chain**: Vendor and supplier relationship verification
+- **Brand Protection**: Trademark and intellectual property compliance
+""",
+        "software_saas": """
+**SOFTWARE/SaaS SECTOR ENHANCED REQUIREMENTS:**
+- **Data Protection**: GDPR, CCPA, and global privacy compliance
+- **Security Certifications**: SOC 2, ISO 27001 verification
+- **API Security**: Secure integration and access controls
+- **Intellectual Property**: Software licensing and IP protection
+- **Service Level Agreements**: SLA compliance and availability standards
+- **Third-Party Integrations**: Vendor security and compliance assessment
+"""
     }
     
-    prompt = build_enhanced_2025_prompt("Shopify", "shopify.com", "ecommerce_retail", test_data)
-    print("Enhanced 2025 prompt generated successfully!")
-    print(f"Prompt length: {len(prompt)} characters")
+    return industry_requirements.get(industry_category, "")
+
+# Integration function for your existing system
+def integrate_enhanced_prompt_with_existing_system():
+    """
+    Instructions to integrate this with your existing risk_assessment.py:
+    
+    1. Replace your build_enhanced_kyb_prompt function in risk_assessment.py with:
+    
+    from utils.enhanced_prompt_builder import build_enhanced_2025_prompt
+    
+    def build_enhanced_kyb_prompt(company_name: str, domain: str = None, scraped_data: Dict = None) -> str:
+        # Determine industry category from scraped data
+        industry_data = scraped_data.get('industry_classification', {}) if scraped_data else {}
+        if isinstance(industry_data, dict):
+            industry_category = industry_data.get('industry_category', 'software_saas')
+        else:
+            industry_category = 'software_saas'
+        
+        # Use enhanced 2025 prompt
+        return build_enhanced_2025_prompt(company_name, domain, industry_category, scraped_data)
+    
+    2. This will enhance your existing system with 2025 compliance standards
+    3. All your existing scrapers will work with the enhanced prompt
+    4. The enhanced prompt will provide better UBO detection, sanctions screening, and compliance analysis
+    """
+    pass
