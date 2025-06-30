@@ -1,5 +1,5 @@
-# KYB System Requirements - Fixed for Python 3.13 Compatibility
-# Replace your entire requirements.txt with this content
+# Complete KYB Requirements - All Features with Compatibility Fixes
+# Keeps all your scrapers and tools, fixes only the problematic versions
 
 # Core FastAPI Framework
 fastapi==0.104.1
@@ -15,10 +15,10 @@ supabase==2.0.2
 # AI Integration
 google-generativeai==0.3.1
 
-# Data Processing - FIXED VERSIONS
-numpy==1.26.4
+# Data Processing - Fixed versions for Python 3.13
+numpy==1.24.4
 
-# Web Scraping & Data Collection
+# Web Scraping & Automation - ALL YOUR SCRAPERS INTACT
 requests==2.31.0
 beautifulsoup4==4.12.2
 selenium==4.15.2
@@ -26,7 +26,7 @@ lxml==4.9.3
 aiohttp==3.9.1
 playwright==1.40.0
 
-# Domain & Security Analysis
+# Domain & Security Analysis - YOUR WHOIS/DNS SCRAPERS
 python-whois==0.8.0
 dnspython==2.4.2
 pyopenssl==23.3.0
@@ -35,16 +35,20 @@ cryptography==41.0.7
 # Async & Performance
 asyncio-throttle==1.0.2
 
-# Utilities
-pydantic==2.5.0
+# Utilities - FIXED PYDANTIC VERSION (no Rust compilation)
+pydantic==1.10.13
 python-dateutil==2.8.2
 typing-extensions==4.8.0
+
+# Authentication
 bcrypt==4.1.2
 
 # Production Server
 gunicorn==21.2.0
+
+# Caching
 redis==5.0.1
 
-# Development & Testing (optional)
+# Development & Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
