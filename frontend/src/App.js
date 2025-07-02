@@ -154,12 +154,12 @@ const LoginPage = ({ onLogin }) => {
           if (response.dev_mode) {
             // In dev mode, auto-login after signup
             setSuccess('Account created! Logging you in...');
-            setTimeout(() => {
+            setTimeout(async () => {
               setIsSignup(false);
-              handleLogin();
+              await handleLoginRequest();
             }, 1000);
           } else {
-            setSuccess('Account created successfully! Please check your email to verify, then login.');
+            setSuccess('Account created successfully! Please check your email to verify your account. Click the verification link in the email to complete your registration and get logged in automatically.');
             setIsSignup(false);
           }
           setName('');
@@ -176,7 +176,26 @@ const LoginPage = ({ onLogin }) => {
       
     } else {
       // Login
-      handleLogin();
+      await handleLoginRequest();
+    }
+  };
+
+  const handleLoginRequest = async () => {
+    setIsLoading(true);
+    try {
+      // Call login API
+      const response = await apiService.login(email, password);
+      
+      if (response.success) {
+        // Successful login - call the parent's onLogin with user data
+        onLogin(response.user);
+      } else {
+        setError(response.message || 'Invalid email or password');
+      }
+    } catch (error) {
+      setError(error.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1940,7 +1959,43 @@ const App = () => {
 
   const checkAuthStatus = async () => {
     try {
-      // Check if we have a stored token
+      // First, check for auth callback in URL (for email verification)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlHash = window.location.hash;
+      
+      // Check for Supabase auth callback parameters
+      const accessToken = urlParams.get('access_token') || extractFromHash(urlHash, 'access_token');
+      const refreshToken = urlParams.get('refresh_token') || extractFromHash(urlHash, 'refresh_token');
+      const tokenType = urlParams.get('token_type') || extractFromHash(urlHash, 'token_type');
+      const expiresIn = urlParams.get('expires_in') || extractFromHash(urlHash, 'expires_in');
+      
+      if (accessToken && refreshToken) {
+        // This is an auth callback from email verification
+        console.log('Processing auth callback from email verification');
+        
+        try {
+          // Store the tokens
+          apiService.setAuthTokens(accessToken, refreshToken);
+          
+          // Get user info using the access token
+          const currentUser = await apiService.getCurrentUser();
+          if (currentUser) {
+            setUser(currentUser);
+            
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            setIsCheckingAuth(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to process auth callback:', error);
+          // Clear any invalid tokens
+          apiService.clearAuthTokens();
+        }
+      }
+      
+      // Check if we have a stored token (normal session check)
       const token = localStorage.getItem('auth_token');
       const storedUser = localStorage.getItem('user_data');
       
@@ -1962,24 +2017,15 @@ const App = () => {
     }
   };
 
-  const handleLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      // Call login API
-      const response = await apiService.login(email, password);
-      
-      if (response.success) {
-        // Successful login
-        onLogin(response.user);
-      } else {
-        setError(response.message || 'Invalid email or password');
-      }
-    } catch (error) {
-      setError(error.message || 'Invalid email or password');
-    } finally {
-      setIsLoading(false);
-    }
+  // Helper function to extract parameters from URL hash
+  const extractFromHash = (hash, param) => {
+    if (!hash) return null;
+    const match = hash.match(new RegExp(`[&#]${param}=([^&]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
+  };
+
+  const handleLogin = (userData) => {
+    setUser(userData);
   };
 
   const handleLogout = async () => {
