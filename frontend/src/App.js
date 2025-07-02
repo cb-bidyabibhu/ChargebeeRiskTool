@@ -1317,3 +1317,550 @@ const RiskAssessmentsPage = () => {
     </div>
   );
 };
+
+// Analytics Page
+const AnalyticsPage = () => {
+  const [analytics, setAnalytics] = useState({
+    totalAssessments: 0,
+    riskDistribution: { Low: 0, Medium: 0, High: 0, Unknown: 0 },
+    averageScore: 0,
+    statistics: {},
+    loading: true
+  });
+  const [assessments, setAssessments] = useState([]);
+  const [timeframe, setTimeframe] = useState('30'); // days
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [timeframe]);
+
+  const loadAnalyticsData = async () => {
+    setLoading(true);
+    try {
+      // Use the correct API service method
+      const riskStats = await apiService.getRiskDistribution();
+      
+      // Get all assessments for additional analytics
+      const allAssessments = await apiService.fetchAssessments();
+      
+      // Process assessments data
+      const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
+      
+      setAnalytics({
+        ...riskStats,
+        ...processedData,
+        loading: false
+      });
+      
+      setAssessments(allAssessments);
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+      
+      // Fallback to processing assessments only
+      try {
+        const allAssessments = await apiService.fetchAssessments();
+        const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
+        
+        setAnalytics({
+          totalAssessments: allAssessments.length,
+          riskDistribution: processedData.riskDistribution || { Low: 0, Medium: 0, High: 0, Unknown: 0 },
+          averageScore: processedData.averageScore || 0,
+          ...processedData,
+          loading: false
+        });
+        
+        setAssessments(allAssessments);
+      } catch (fallbackError) {
+        console.error('Fallback analytics load failed:', fallbackError);
+        setAnalytics(prev => ({ ...prev, loading: false }));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processAssessmentsData = (assessments, days) => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    const recentAssessments = assessments.filter(assessment => 
+      new Date(assessment.created_at) >= cutoffDate
+    );
+    
+    // Calculate risk distribution
+    const riskDistribution = { Low: 0, Medium: 0, High: 0, Unknown: 0 };
+    let totalScore = 0;
+    let scoreCount = 0;
+    
+    // Calculate daily assessments for chart
+    const dailyData = {};
+    const scoreDistribution = { '0-3': 0, '3-5': 0, '5-7': 0, '7-10': 0 };
+    
+    recentAssessments.forEach(assessment => {
+      const date = new Date(assessment.created_at).toISOString().split('T')[0];
+      const score = assessment.risk_assessment_data?.weighted_total_score || 0;
+      const riskLevel = assessment.risk_assessment_data?.risk_level || 'Unknown';
+      
+      // Risk distribution
+      riskDistribution[riskLevel] = (riskDistribution[riskLevel] || 0) + 1;
+      
+      // Average score calculation
+      if (score > 0) {
+        totalScore += score;
+        scoreCount++;
+      }
+      
+      // Daily data
+      if (!dailyData[date]) {
+        dailyData[date] = { date, total: 0, Low: 0, Medium: 0, High: 0, Unknown: 0 };
+      }
+      dailyData[date].total++;
+      dailyData[date][riskLevel]++;
+      
+      // Score distribution
+      if (score < 3) scoreDistribution['0-3']++;
+      else if (score < 5) scoreDistribution['3-5']++;
+      else if (score < 7) scoreDistribution['5-7']++;
+      else scoreDistribution['7-10']++;
+    });
+    
+    const dailyAssessments = Object.values(dailyData).sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+    
+    return {
+      recentAssessments: recentAssessments.length,
+      riskDistribution,
+      averageScore: scoreCount > 0 ? totalScore / scoreCount : 0,
+      dailyAssessments,
+      scoreDistribution,
+      avgResponseTime: '45s',
+      completionRate: Math.round((recentAssessments.length / Math.max(assessments.length, 1)) * 100)
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+        <span className="ml-2 text-gray-600">Loading analytics...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+        <div className="flex items-center space-x-4">
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <button
+            onClick={loadAnalyticsData}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Assessments</p>
+              <p className="text-3xl font-bold text-gray-900">{analytics.totalAssessments || analytics.total_assessments || 0}</p>
+              <p className="text-sm text-gray-500">All time</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Recent Assessments</p>
+              <p className="text-3xl font-bold text-gray-900">{analytics.recentAssessments || 0}</p>
+              <p className="text-sm text-gray-500">Last {timeframe} days</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Average Score</p>
+              <p className="text-3xl font-bold text-gray-900">{(analytics.averageScore || analytics.average_score || 0).toFixed(1)}</p>
+              <p className="text-sm text-gray-500">Out of 10</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <PieChart className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">High Risk</p>
+              <p className="text-3xl font-bold text-red-600">{(analytics.riskDistribution || analytics.risk_distribution)?.High || 0}</p>
+              <p className="text-sm text-gray-500">Requires attention</p>
+            </div>
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk Distribution Chart */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+          <PieChart className="w-5 h-5 mr-2 text-blue-600" />
+          Risk Distribution Overview
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Object.entries((analytics.riskDistribution || analytics.risk_distribution) || {}).map(([risk, count]) => (
+            <div key={risk} className="text-center p-4 rounded-lg border border-gray-200">
+              <div className={`w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold ${
+                risk === 'Low' ? 'bg-green-100 text-green-600' :
+                risk === 'Medium' ? 'bg-yellow-100 text-yellow-600' :
+                risk === 'High' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {count}
+              </div>
+              <h4 className="font-semibold text-gray-900">{risk} Risk</h4>
+              <p className="text-sm text-gray-500">
+                {Math.round((count / Math.max((analytics.totalAssessments || analytics.total_assessments) || 1, 1)) * 100)}% of total
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Export Options */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Download className="w-5 h-5 mr-2 text-blue-600" />
+          Export Analytics
+        </h3>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => apiService.exportData('csv')}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Export Summary CSV</span>
+          </button>
+          <button
+            onClick={() => apiService.exportData('csv')}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Export Detailed CSV</span>
+          </button>
+          <span className="text-sm text-gray-500">
+            Analytics data for the last {timeframe} days
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Settings Page
+const SettingsPage = () => {
+  const [apiHealth, setApiHealth] = useState('checking');
+  const [settings, setSettings] = useState({
+    notifications: true,
+    autoRefresh: false,
+    theme: 'light'
+  });
+
+  useEffect(() => {
+    checkApiHealth();
+  }, []);
+
+  const checkApiHealth = async () => {
+    try {
+      await apiService.checkBackendHealth();
+      setApiHealth('connected');
+    } catch (error) {
+      setApiHealth('disconnected');
+    }
+  };
+
+  const handleSettingChange = (setting, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [setting]: value
+    }));
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      
+      {/* API Health Status */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Activity className="w-5 h-5 mr-2 text-blue-600" />
+          API Health Status
+        </h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className={`w-3 h-3 rounded-full ${
+              apiHealth === 'connected' ? 'bg-green-500' :
+              apiHealth === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
+            }`}></div>
+            <span className="text-sm font-medium text-gray-900">
+              Backend API: {apiHealth === 'connected' ? 'Connected' : 
+                          apiHealth === 'disconnected' ? 'Disconnected' : 'Checking...'}
+            </span>
+          </div>
+          <button
+            onClick={checkApiHealth}
+            className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Check Status</span>
+          </button>
+        </div>
+        <div className="mt-4 text-sm text-gray-500">
+          <p>API Endpoint: {apiService.baseURL}</p>
+          <p>Last checked: {new Date().toLocaleTimeString()}</p>
+        </div>
+      </div>
+
+      {/* Application Settings */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Settings className="w-5 h-5 mr-2 text-blue-600" />
+          Application Settings
+        </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-gray-900">Enable Notifications</label>
+              <p className="text-sm text-gray-500">Receive alerts for high-risk assessments</p>
+            </div>
+            <button
+              onClick={() => handleSettingChange('notifications', !settings.notifications)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.notifications ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.notifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-gray-900">Auto-refresh Data</label>
+              <p className="text-sm text-gray-500">Automatically refresh assessment data</p>
+            </div>
+            <button
+              onClick={() => handleSettingChange('autoRefresh', !settings.autoRefresh)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.autoRefresh ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.autoRefresh ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-gray-900">Theme</label>
+              <p className="text-sm text-gray-500">Choose your preferred theme</p>
+            </div>
+            <select
+              value={settings.theme}
+              onChange={(e) => handleSettingChange('theme', e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="auto">Auto</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* System Information */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Info className="w-5 h-5 mr-2 text-blue-600" />
+          System Information
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Application Version</label>
+            <p className="mt-1 text-sm text-gray-900">v3.0.0</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Assessment Type</label>
+            <p className="mt-1 text-sm text-gray-900">Unified (AI + Scrapers)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Database</label>
+            <p className="mt-1 text-sm text-gray-900">Supabase</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">AI Model</label>
+            <p className="mt-1 text-sm text-gray-900">Gemini 1.5 Flash</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Zap className="w-5 h-5 mr-2 text-blue-600" />
+          Quick Actions
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => window.open(apiService.baseURL + '/docs', '_blank')}
+            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="w-5 h-5 text-blue-600" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">API Documentation</div>
+              <div className="text-sm text-gray-500">View API endpoints and documentation</div>
+            </div>
+          </button>
+          
+          <button
+            onClick={() => apiService.exportData('csv')}
+            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-5 h-5 text-green-600" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">Export All Data</div>
+              <div className="text-sm text-gray-500">Download complete assessment data</div>
+            </div>
+          </button>
+          
+          <button
+            onClick={checkApiHealth}
+            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Activity className="w-5 h-5 text-purple-600" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">System Health Check</div>
+              <div className="text-sm text-gray-500">Verify all system components</div>
+            </div>
+          </button>
+          
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw className="w-5 h-5 text-orange-600" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">Refresh Application</div>
+              <div className="text-sm text-gray-500">Reload the entire application</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Support & Help */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Mail className="w-5 h-5 mr-2 text-blue-600" />
+          Support & Help
+        </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-gray-900">Need Help?</div>
+              <div className="text-sm text-gray-500">Contact the development team for support</div>
+            </div>
+            <button
+              onClick={() => window.open('mailto:bidya.bibhu@chargebee.com?subject=KYB System Support', '_blank')}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Contact Support</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main App Component
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [currentPage, setCurrentPage] = useState('dashboard');
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setCurrentPage('dashboard');
+  };
+
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <ChargebeeStyleDashboard />;
+      case 'assessments':
+        return <RiskAssessmentsPage />;
+      case 'analytics':
+        return <AnalyticsPage />;
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return <ChargebeeStyleDashboard />;
+    }
+  };
+
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-50">
+      <Header user={user} onLogout={handleLogout} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
+        <main className="flex-1 overflow-auto">
+          {renderCurrentPage()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default App;
