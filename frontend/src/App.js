@@ -611,13 +611,13 @@ const ChargebeeStyleDashboard = () => {
                   </div>
                   
                   {/* Helpful Instructions */}
-                  <div className="mt-2 space-y-2">
+                  {/* <div className="mt-2 space-y-2">
                     <p className="text-xs text-gray-600">
                       <strong>Enter the company's primary website domain</strong> (without https:// or www.)
-                    </p>
+                    </p> */}
                     
                     {/* Examples */}
-                    <div className="flex flex-wrap gap-2">
+                    {/* <div className="flex flex-wrap gap-2">
                       <span className="text-xs text-gray-500">Examples:</span>
                       {['stripe.com', 'salesforce.com', 'zoom.us', 'atlassian.com'].map((example) => (
                         <button
@@ -626,9 +626,9 @@ const ChargebeeStyleDashboard = () => {
                           className="text-xs bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 px-2 py-1 rounded transition-colors"
                         >
                           {example}
-                        </button>
-                      ))}
-                    </div>
+                        </button> */}
+                      {/* ))} */}
+                    {/* </div> */}
                     
                     {/* Format Guidelines */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
@@ -698,7 +698,7 @@ const ChargebeeStyleDashboard = () => {
                 </div>
 
                 {/* Process Information */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                {/* <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2 text-xs text-gray-600">
                     <Clock className="w-4 h-4" />
                     <span>Assessment takes 30-60 seconds</span>
@@ -709,7 +709,7 @@ const ChargebeeStyleDashboard = () => {
                   <p className="text-xs text-gray-500 mt-1">
                     Our system will analyze business registration, financial health, compliance status, and online presence.
                   </p>
-                </div>
+                </div> */}
 
                 {/* Input Validation Hint */}
                 {domainInput && !domainInput.includes('.') && (
@@ -1000,7 +1000,7 @@ const ChargebeeStyleDashboard = () => {
           </div>
         </div>
       </div>
-    </div>
+    // </div>
   );
 };
 
