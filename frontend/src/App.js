@@ -576,13 +576,11 @@ const ChargebeeStyleDashboard = () => {
           <ConnectionStatus />
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-12 gap-6">
-          
-          {/* Left Panel - 30% */}
-          <div className="col-span-12 lg:col-span-4 space-y-6">
-            
-            {/* ENHANCED Assessment Hub */}
+        {/* Main Content Grid - 2 columns, left column with 2 rows */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+          {/* Left Column: 2 stacked rows */}
+          <div className="flex flex-col gap-6 lg:col-span-1 min-w-0">
+            {/* Assessment Hub */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mr-4">
@@ -776,8 +774,8 @@ const ChargebeeStyleDashboard = () => {
             </div>
           </div>
 
-          {/* Right Panel - 70% */}
-          <div className="col-span-12 lg:col-span-8">
+          {/* Right Column: Welcome or Assessment Details, full height */}
+          <div className="lg:col-span-2 flex flex-col h-full min-w-0">
             {currentAssessment ? (
               <div className="space-y-6">
                 
@@ -920,8 +918,8 @@ const ChargebeeStyleDashboard = () => {
                 </div>
               </div>
             ) : (
-              /* Empty State with KYB Features */
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
+              /* Welcome to Chargebee KYB Assessment */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 flex flex-col justify-center h-full">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Shield className="w-10 h-10 text-gray-400" />
                 </div>
@@ -1005,7 +1003,7 @@ const ChargebeeStyleDashboard = () => {
           </div>
         </div>
       </div>
-    // </div>
+    </div>
   );
 };
 
