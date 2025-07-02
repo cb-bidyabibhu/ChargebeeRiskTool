@@ -154,9 +154,15 @@ const LoginPage = ({ onLogin }) => {
           if (response.dev_mode) {
             // In dev mode, auto-login after signup
             setSuccess('Account created! Logging you in...');
-            setTimeout(() => {
-              setIsSignup(false);
-              handleLogin();
+            setTimeout(async () => {
+              setIsLoading(true);
+              const loginResult = await onLogin(email, password);
+              if (loginResult.success) {
+                setIsSignup(false);
+              } else {
+                setError(loginResult.message);
+              }
+              setIsLoading(false);
             }, 1000);
           } else {
             setSuccess('Account created successfully! Please check your email to verify, then login.');
@@ -176,7 +182,14 @@ const LoginPage = ({ onLogin }) => {
       
     } else {
       // Login
-      handleLogin();
+      setIsLoading(true);
+      const loginResult = await onLogin(email, password);
+      if (loginResult.success) {
+        // Login successful - component will unmount
+      } else {
+        setError(loginResult.message);
+      }
+      setIsLoading(false);
     }
   };
 
@@ -1962,23 +1975,20 @@ const App = () => {
     }
   };
 
-  const handleLogin = async () => {
-    setIsLoading(true);
-    
+  const handleLogin = async (email, password) => {
     try {
       // Call login API
       const response = await apiService.login(email, password);
       
       if (response.success) {
         // Successful login
-        onLogin(response.user);
+        setUser(response.user);
+        return { success: true };
       } else {
-        setError(response.message || 'Invalid email or password');
+        return { success: false, message: response.message || 'Invalid email or password' };
       }
     } catch (error) {
-      setError(error.message || 'Invalid email or password');
-    } finally {
-      setIsLoading(false);
+      return { success: false, message: error.message || 'Invalid email or password' };
     }
   };
 
