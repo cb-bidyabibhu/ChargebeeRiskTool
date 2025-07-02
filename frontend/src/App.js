@@ -613,45 +613,24 @@ const ChargebeeStyleDashboard = () => {
                     </div>
                   </div>
                   
-                  {/* Helpful Instructions */}
-                  {/* <div className="mt-2 space-y-2">
-                    <p className="text-xs text-gray-600">
-                      <strong>Enter the company's primary website domain</strong> (without https:// or www.)
-                    </p> */}
-                    
-                    {/* Examples */}
-                    {/* <div className="flex flex-wrap gap-2">
-                      <span className="text-xs text-gray-500">Examples:</span>
-                      {['stripe.com', 'salesforce.com', 'zoom.us', 'atlassian.com'].map((example) => (
-                        <button
-                          key={example}
-                          onClick={() => setDomainInput(example)}
-                          className="text-xs bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 px-2 py-1 rounded transition-colors"
-                        >
-                          {example}
-                        </button> */}
-                      {/* ))} */}
-                    {/* </div> */}
-                    
-                    {/* Format Guidelines */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-                      <div className="flex items-start space-x-2">
-                        <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-blue-800">
-                          <p className="font-medium mb-1">What to enter:</p>
-                          <div className="grid grid-cols-2 gap-1 text-xs">
-                            <div>
-                              <span className="text-green-600">✓</span> shopify.com
-                            </div>
-                            <div>
-                              <span className="text-green-600">✓</span> microsoft.com
-                            </div>
-                            <div>
-                              <span className="text-red-600">✗</span> https://shopify.com
-                            </div>
-                            <div>
-                              <span className="text-red-600">✗</span> Shopify Inc.
-                            </div>
+                  {/* Format Guidelines */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                    <div className="flex items-start space-x-2">
+                      <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-blue-800">
+                        <p className="font-medium mb-1">What to enter:</p>
+                        <div className="grid grid-cols-2 gap-1 text-xs">
+                          <div>
+                            <span className="text-green-600">✓</span> shopify.com
+                          </div>
+                          <div>
+                            <span className="text-green-600">✓</span> microsoft.com
+                          </div>
+                          <div>
+                            <span className="text-red-600">✗</span> https://shopify.com
+                          </div>
+                          <div>
+                            <span className="text-red-600">✗</span> Shopify Inc.
                           </div>
                         </div>
                       </div>
@@ -699,20 +678,6 @@ const ChargebeeStyleDashboard = () => {
                     )}
                   </button>
                 </div>
-
-                {/* Process Information */}
-                {/* <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-center space-x-2 text-xs text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span>Assessment takes 30-60 seconds</span>
-                    <span>•</span>
-                    <Database className="w-4 h-4" />
-                    <span>20+ data sources analyzed</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Our system will analyze business registration, financial health, compliance status, and online presence.
-                  </p>
-                </div> */}
 
                 {/* Input Validation Hint */}
                 {domainInput && !domainInput.includes('.') && (
