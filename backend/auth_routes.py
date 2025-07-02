@@ -1,233 +1,271 @@
 # backend/auth_routes.py
-# Create this new file in your backend folder
+"""
+Authentication routes with proper redirect URL configuration
+Fixes the redirect issue for email verification
+"""
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, validator
-from typing import Optional
 import os
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr, validator
 from supabase import create_client, Client
-from dotenv import load_dotenv
+from typing import Optional, Dict, Any
+from datetime import datetime
+import re
 
-load_dotenv()
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise Exception("Supabase credentials not found in environment variables")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-router = APIRouter(prefix="/auth", tags=["authentication"])
+# Get the correct redirect URL based on environment
+def get_redirect_url():
+    """Get the appropriate redirect URL based on environment"""
+    # Check if we're in production (Render)
+    if os.getenv("RENDER"):
+        return "https://chargebee-kyb-frontend.onrender.com"
+    # Default to localhost for development
+    return "http://localhost:3000"
 
-# Pydantic models for request/response
+# Pydantic models
 class SignUpRequest(BaseModel):
     email: EmailStr
     password: str
-    full_name: str
-    
-    @validator('email')
-    def validate_chargebee_email(cls, v):
-        if not v.endswith('@chargebee.com'):
-            raise ValueError('Only @chargebee.com email addresses are allowed')
-        return v
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
     
     @validator('password')
     def validate_password(cls, v):
-        if len(v) < 6:
-            raise ValueError('Password must be at least 6 characters long')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
         return v
 
-class LoginRequest(BaseModel):
+class SignInRequest(BaseModel):
     email: EmailStr
     password: str
-    
-    @validator('email')
-    def validate_chargebee_email(cls, v):
-        if not v.endswith('@chargebee.com'):
-            raise ValueError('Only @chargebee.com email addresses are allowed')
-        return v
 
-class AuthResponse(BaseModel):
-    success: bool
-    message: str
-    user: Optional[dict] = None
-    session: Optional[dict] = None
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
 
-@router.post("/signup", response_model=AuthResponse)
-async def signup(request: SignUpRequest):
-    """Create a new user account (Chargebee employees only)"""
+# Authentication endpoints
+@router.post("/signup")
+async def sign_up(request: SignUpRequest):
+    """
+    Create a new user account with email verification
+    """
     try:
+        # Get the correct redirect URL
+        redirect_url = get_redirect_url()
+        
         # Create user with Supabase Auth
         response = supabase.auth.sign_up({
             "email": request.email,
             "password": request.password,
             "options": {
+                "email_redirect_to": redirect_url,  # This fixes the redirect issue!
                 "data": {
-                    "full_name": request.full_name
+                    "full_name": request.full_name,
+                    "company_name": request.company_name,
+                    "created_at": datetime.now().isoformat()
                 }
             }
         })
         
         if response.user:
-            return AuthResponse(
-                success=True,
-                message="Account created successfully! Please check your email for verification.",
-                user={
-                    "id": response.user.id,
-                    "email": response.user.email,
-                    "full_name": request.full_name
-                }
-            )
+            return {
+                "success": True,
+                "message": "User created successfully. Please check your email to verify your account.",
+                "user_id": response.user.id,
+                "email": response.user.email,
+                "redirect_url": redirect_url  # Include this in response for frontend
+            }
         else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to create account"
-            )
+            raise HTTPException(status_code=400, detail="Failed to create user")
             
     except Exception as e:
-        # Check if email already exists
-        if "User already registered" in str(e):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="An account with this email already exists"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
+        error_message = str(e)
+        if "User already registered" in error_message:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail=error_message)
 
-@router.post("/login", response_model=AuthResponse)
-async def login(request: LoginRequest):
-    """Login with email and password"""
+@router.post("/signin")
+async def sign_in(request: SignInRequest):
+    """
+    Sign in with email and password
+    """
     try:
-        # Sign in with Supabase Auth
         response = supabase.auth.sign_in_with_password({
             "email": request.email,
             "password": request.password
         })
         
-        if response.user and response.session:
-            # Get user profile
-            profile = supabase.table("profiles")\
-                .select("*")\
-                .eq("id", response.user.id)\
-                .single()\
-                .execute()
-            
-            return AuthResponse(
-                success=True,
-                message="Login successful!",
-                user={
+        if response.user:
+            return {
+                "success": True,
+                "message": "Signed in successfully",
+                "user": {
                     "id": response.user.id,
                     "email": response.user.email,
-                    "full_name": profile.data.get("full_name") if profile.data else None,
-                    "role": profile.data.get("role", "Risk Analyst") if profile.data else "Risk Analyst"
+                    "user_metadata": response.user.user_metadata
                 },
-                session={
+                "session": {
                     "access_token": response.session.access_token,
                     "refresh_token": response.session.refresh_token,
                     "expires_at": response.session.expires_at
                 }
-            )
+            }
         else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
+            raise HTTPException(status_code=401, detail="Invalid credentials")
             
     except Exception as e:
-        if "Invalid login credentials" in str(e):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
+        error_message = str(e)
+        if "Invalid login credentials" in error_message:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=400, detail=error_message)
 
-@router.post("/logout")
-async def logout(access_token: str):
-    """Logout user"""
+@router.post("/signout")
+async def sign_out(authorization: str = Depends(get_current_user_token)):
+    """
+    Sign out the current user
+    """
     try:
-        # Sign out with Supabase
-        response = supabase.auth.sign_out()
-        
-        return AuthResponse(
-            success=True,
-            message="Logged out successfully!"
-        )
+        supabase.auth.sign_out()
+        return {
+            "success": True,
+            "message": "Signed out successfully"
+        }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/me")
-async def get_current_user(authorization: str):
-    """Get current user information"""
+@router.get("/user")
+async def get_user(authorization: str = Depends(get_current_user_token)):
+    """
+    Get current user information
+    """
     try:
-        # Extract token from Bearer authorization
-        token = authorization.replace("Bearer ", "")
+        user = supabase.auth.get_user(authorization)
+        if user:
+            return {
+                "success": True,
+                "user": {
+                    "id": user.user.id,
+                    "email": user.user.email,
+                    "user_metadata": user.user.user_metadata,
+                    "created_at": user.user.created_at
+                }
+            }
+        else:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+@router.post("/reset-password")
+async def reset_password(email: EmailStr):
+    """
+    Send password reset email
+    """
+    try:
+        redirect_url = get_redirect_url()
         
-        # Get user from token
-        response = supabase.auth.get_user(token)
+        response = supabase.auth.reset_password_email(
+            email,
+            {
+                "redirect_to": f"{redirect_url}/reset-password"
+            }
+        )
+        
+        return {
+            "success": True,
+            "message": "Password reset email sent successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/update-profile")
+async def update_profile(
+    request: UpdateProfileRequest,
+    authorization: str = Depends(get_current_user_token)
+):
+    """
+    Update user profile information
+    """
+    try:
+        update_data = {}
+        if request.full_name is not None:
+            update_data["full_name"] = request.full_name
+        if request.company_name is not None:
+            update_data["company_name"] = request.company_name
+        if request.phone is not None:
+            update_data["phone"] = request.phone
+            
+        response = supabase.auth.update_user({
+            "data": update_data
+        })
         
         if response.user:
-            # Get user profile
-            profile = supabase.table("profiles")\
-                .select("*")\
-                .eq("id", response.user.id)\
-                .single()\
-                .execute()
-            
-            return AuthResponse(
-                success=True,
-                message="User retrieved successfully",
-                user={
+            return {
+                "success": True,
+                "message": "Profile updated successfully",
+                "user": {
                     "id": response.user.id,
                     "email": response.user.email,
-                    "full_name": profile.data.get("full_name") if profile.data else None,
-                    "role": profile.data.get("role", "Risk Analyst") if profile.data else "Risk Analyst"
+                    "user_metadata": response.user.user_metadata
                 }
-            )
+            }
         else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
+            raise HTTPException(status_code=400, detail="Failed to update profile")
             
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/verify-email")
-async def verify_email(email: EmailStr):
-    """Check if email is valid Chargebee email"""
-    if email.endswith('@chargebee.com'):
-        # Check if email already exists
-        try:
-            existing = supabase.table("profiles")\
-                .select("email")\
-                .eq("email", email)\
-                .execute()
-            
-            return {
-                "valid": True,
-                "exists": len(existing.data) > 0 if existing.data else False,
-                "message": "Valid Chargebee email"
-            }
-        except:
-            return {
-                "valid": True,
-                "exists": False,
-                "message": "Valid Chargebee email"
-            }
-    else:
+# Helper function to get current user token
+def get_current_user_token(authorization: str = None):
+    """
+    Extract and validate the authorization token
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    # Remove "Bearer " prefix if present
+    if authorization.startswith("Bearer "):
+        return authorization[7:]
+    
+    return authorization
+
+# Health check for auth service
+@router.get("/health")
+async def auth_health_check():
+    """
+    Check if authentication service is working
+    """
+    try:
+        # Test Supabase connection
+        settings = supabase.auth.get_settings()
         return {
-            "valid": False,
-            "exists": False,
-            "message": "Only @chargebee.com email addresses are allowed"
+            "status": "healthy",
+            "service": "authentication",
+            "supabase_connected": True,
+            "redirect_url": get_redirect_url(),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "authentication",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
         }
