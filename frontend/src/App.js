@@ -6,10 +6,10 @@ import {
   Globe, DollarSign, Lock, Building, Scale, RefreshCw, ExternalLink,
   Home, ChevronRight, Mail, Bell, ChevronDown, ChevronUp, Info,
   Zap, ShieldCheck, Trash2, FileDown, CheckSquare, Square,
-  Edit3, Copy, Share2
+  Edit3, Copy, Share2, UserPlus, ArrowLeft
 } from 'lucide-react';
 
-// Import the API service - FIXED IMPORT
+// Import the API service
 import apiService from './services/api';
 import ConnectionStatus from './components/ConnectionStatus';
 
@@ -99,22 +99,40 @@ const exportToCSV = (assessments) => {
     });
 };
 
-// Login Component
+// Login Component with Signup Flow
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (isSignup && password !== confirmPassword) {
+      alert('Passwords do not match!');
+      return;
+    }
+    
     setIsLoading(true);
     
     setTimeout(() => {
-      onLogin({
-        email,
-        name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        role: 'Risk Analyst'
-      });
+      if (isSignup) {
+        // Simulate signup success
+        alert('Account created successfully! Please login.');
+        setIsSignup(false);
+        setName('');
+        setConfirmPassword('');
+      } else {
+        // Login
+        onLogin({
+          email,
+          name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          role: 'Risk Analyst'
+        });
+      }
       setIsLoading(false);
     }, 1000);
   };
@@ -127,10 +145,28 @@ const LoginPage = ({ onLogin }) => {
             <Shield className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Chargebee KYB</h1>
-          <p className="text-gray-600">Risk Assessment Platform</p>
+          <p className="text-gray-600">
+            {isSignup ? 'Create your account' : 'Risk Assessment Platform'}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isSignup && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your full name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                required
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Chargebee Email
@@ -159,6 +195,22 @@ const LoginPage = ({ onLogin }) => {
             />
           </div>
 
+          {isSignup && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                required
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
@@ -167,13 +219,29 @@ const LoginPage = ({ onLogin }) => {
             {isLoading ? (
               <>
                 <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                Signing In...
+                {isSignup ? 'Creating Account...' : 'Signing In...'}
               </>
             ) : (
-              'Sign In'
+              isSignup ? 'Create Account' : 'Sign In'
             )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            {isSignup ? 'Already have an account?' : "Don't have an account?"}
+            <button
+              onClick={() => {
+                setIsSignup(!isSignup);
+                setPassword('');
+                setConfirmPassword('');
+              }}
+              className="ml-2 text-blue-600 hover:text-blue-700 font-semibold"
+            >
+              {isSignup ? 'Sign In' : 'Sign Up'}
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -311,7 +379,12 @@ const ChargebeeStyleDashboard = () => {
     try {
       console.log(`🔍 Fetching existing assessment for: ${domainInput}`);
       const result = await apiService.getAssessment(domainInput);
-      if (result) {
+      
+      // Extract the data from the response
+      if (result && result.data) {
+        setCurrentAssessment(result.data);
+        setDomainInput('');
+      } else if (result) {
         setCurrentAssessment(result);
         setDomainInput('');
       } else {
@@ -727,22 +800,84 @@ const ChargebeeStyleDashboard = () => {
                 </div>
               </div>
             ) : (
-              /* Empty State */
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              /* Empty State with KYB Features */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Shield className="w-10 h-10 text-gray-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Assessment Selected</h3>
-                <p className="text-gray-600 mb-6">Enter a business domain in the Assessment Hub to get started, or select from recent assessments.</p>
-                <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                  <div className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    <span>Assessment takes 30-60 seconds</span>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2 text-center">Welcome to Chargebee KYB Assessment</h3>
+                <p className="text-gray-600 mb-8 text-center">Our comprehensive risk assessment analyzes businesses across 5 critical dimensions:</p>
+                
+                {/* Five Types of Checks */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Reputation Risk</h4>
+                      <p className="text-sm text-gray-600">Online presence, customer reviews, social media analysis</p>
+                    </div>
                   </div>
-                  <span>•</span>
-                  <div className="flex items-center">
-                    <Globe className="w-4 h-4 mr-1" />
-                    <span>Real-time data collection</span>
+                  
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <DollarSign className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Financial Risk</h4>
+                      <p className="text-sm text-gray-600">Financial health, business model viability, funding status</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Lock className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Technology Risk</h4>
+                      <p className="text-sm text-gray-600">Website security, SSL certificates, data protection</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Building className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Business Risk</h4>
+                      <p className="text-sm text-gray-600">Company age, domain history, business verification</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Scale className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Legal & Compliance Risk</h4>
+                      <p className="text-sm text-gray-600">OFAC sanctions, privacy policies, terms of service</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm text-gray-500 mb-2">Enter a business domain in the Assessment Hub to get started</p>
+                  <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <Clock className="w-4 h-4 mr-1" />
+                      <span>60-90 seconds</span>
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center">
+                      <Database className="w-4 h-4 mr-1" />
+                      <span>20+ data sources</span>
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center">
+                      <Globe className="w-4 h-4 mr-1" />
+                      <span>Real-time analysis</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -889,7 +1024,8 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                   <div className="text-sm font-medium text-gray-900">{safeGetCompanyName(assessment)}</div>
                   <div className="text-sm text-gray-500">
                     {assessment.assessment_type === 'enhanced_with_scrapers' ? 'Enhanced' : 
-                     assessment.assessment_type === 'unified_ai_plus_scrapers' ? 'Unified' : 'Standard'} Assessment
+                     assessment.assessment_type === 'unified_ai_plus_scrapers' ? 'Unified' : 
+                     assessment.assessment_type === 'amazing' ? 'Amazing' : 'Standard'} Assessment
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -978,6 +1114,7 @@ const RiskAssessmentsPage = () => {
   const [selectedAssessment, setSelectedAssessment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' or 'detail'
+  const [expandedSections, setExpandedSections] = useState({});
 
   useEffect(() => {
     loadAssessments();
@@ -1021,6 +1158,31 @@ const RiskAssessmentsPage = () => {
   const handleBackToList = () => {
     setView('list');
     setSelectedAssessment(null);
+    setExpandedSections({});
+  };
+
+  const toggleSection = (sectionId) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+  };
+
+  // Helper functions for risk visualization
+  const getRiskColor = (score) => {
+    if (score >= 7) return 'text-green-600';
+    if (score >= 4) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getRiskBgColor = (score) => {
+    if (score >= 7) return 'bg-green-50';
+    if (score >= 4) return 'bg-yellow-50';
+    return 'bg-red-50';
+  };
+
+  const formatRiskCategory = (key) => {
+    return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   if (loading) {
@@ -1053,43 +1215,101 @@ const RiskAssessmentsPage = () => {
             Back to Assessments
           </button>
           
-          {/* Detailed Assessment View */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Assessment Details - {safeGetCompanyName(selectedAssessment)}
-            </h2>
+          {/* Detailed Assessment View with Expandable Categories */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">
+                Assessment Details - {safeGetCompanyName(selectedAssessment)}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Created on {new Date(selectedAssessment?.created_at).toLocaleDateString()}
+              </p>
+            </div>
             
             {selectedAssessment ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-6">
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Company</label>
-                    <p className="mt-1 text-sm text-gray-900">{safeGetCompanyName(selectedAssessment)}</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">{safeGetCompanyName(selectedAssessment)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Domain</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedAssessment.domain || 'N/A'}</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">{selectedAssessment.domain || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Risk Level</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedAssessment.risk_assessment_data?.risk_level || 'N/A'}</p>
+                    <label className="block text-sm font-medium text-gray-700">Overall Risk Level</label>
+                    <p className={`mt-1 text-lg font-semibold ${
+                      selectedAssessment.risk_assessment_data?.risk_level === 'Low' ? 'text-green-600' :
+                      selectedAssessment.risk_assessment_data?.risk_level === 'Medium' ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {selectedAssessment.risk_assessment_data?.risk_level || 'N/A'}
+                    </p>
                   </div>
                 </div>
                 
+                {/* Risk Categories - Expandable */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Risk Categories</label>
-                  <div className="space-y-2">
-                    {Object.entries(selectedAssessment.risk_assessment_data?.risk_categories || {}).map(([key, category]) => (
-                      <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <span className="font-medium">{key.replace('_', ' ').toUpperCase()}</span>
-                        <span className="text-sm text-gray-600">Score: {category.average_score?.toFixed(1) || 'N/A'}</span>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Categories Analysis</h3>
+                  <div className="space-y-4">
+                    {Object.entries(selectedAssessment.risk_assessment_data?.risk_categories || {}).map(([categoryKey, categoryData]) => (
+                      <div key={categoryKey} className="border border-gray-200 rounded-lg">
+                        <button
+                          onClick={() => toggleSection(categoryKey)}
+                          className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getRiskBgColor(categoryData.average_score)}`}>
+                              {categoryKey === 'reputation_risk' && <TrendingUp className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                              {categoryKey === 'financial_risk' && <DollarSign className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                              {categoryKey === 'technology_risk' && <Lock className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                              {categoryKey === 'business_risk' && <Building className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                              {categoryKey === 'legal_compliance_risk' && <Scale className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900">
+                                {formatRiskCategory(categoryKey)}
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                Score: {categoryData.average_score?.toFixed(1) || 'N/A'} • Weight: {Math.round(categoryData.weight * 100)}%
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections[categoryKey] ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {expandedSections[categoryKey] && (
+                          <div className="p-4 pt-0">
+                            <div className="space-y-3">
+                              {categoryData.checks?.map((check, index) => (
+                                <div key={index} className="bg-gray-50 rounded-lg p-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="font-medium text-gray-900">{check.check_name}</h5>
+                                    <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskBgColor(check.score)} ${getRiskColor(check.score)}`}>
+                                      {check.score}/10
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">{check.reason}</p>
+                                  {check.insight && (
+                                    <p className="text-sm text-blue-600 mt-2">
+                                      <Info className="w-4 h-4 inline mr-1" />
+                                      {check.insight}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-600">No assessment selected.</p>
+              <p className="text-gray-600 p-6">No assessment selected.</p>
             )}
           </div>
         </div>
@@ -1097,550 +1317,3 @@ const RiskAssessmentsPage = () => {
     </div>
   );
 };
-
-// Analytics Page
-const AnalyticsPage = () => {
-  const [analytics, setAnalytics] = useState({
-    totalAssessments: 0,
-    riskDistribution: { Low: 0, Medium: 0, High: 0, Unknown: 0 },
-    averageScore: 0,
-    statistics: {},
-    loading: true
-  });
-  const [assessments, setAssessments] = useState([]);
-  const [timeframe, setTimeframe] = useState('30'); // days
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadAnalyticsData();
-  }, [timeframe]);
-
-  const loadAnalyticsData = async () => {
-    setLoading(true);
-    try {
-      // Use the correct API service method
-      const riskStats = await apiService.getRiskDistribution();
-      
-      // Get all assessments for additional analytics
-      const allAssessments = await apiService.fetchAssessments();
-      
-      // Process assessments data
-      const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
-      
-      setAnalytics({
-        ...riskStats,
-        ...processedData,
-        loading: false
-      });
-      
-      setAssessments(allAssessments);
-    } catch (error) {
-      console.error('Failed to load analytics:', error);
-      
-      // Fallback to processing assessments only
-      try {
-        const allAssessments = await apiService.fetchAssessments();
-        const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
-        
-        setAnalytics({
-          totalAssessments: allAssessments.length,
-          riskDistribution: processedData.riskDistribution || { Low: 0, Medium: 0, High: 0, Unknown: 0 },
-          averageScore: processedData.averageScore || 0,
-          ...processedData,
-          loading: false
-        });
-        
-        setAssessments(allAssessments);
-      } catch (fallbackError) {
-        console.error('Fallback analytics load failed:', fallbackError);
-        setAnalytics(prev => ({ ...prev, loading: false }));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const processAssessmentsData = (assessments, days) => {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    
-    const recentAssessments = assessments.filter(assessment => 
-      new Date(assessment.created_at) >= cutoffDate
-    );
-    
-    // Calculate risk distribution
-    const riskDistribution = { Low: 0, Medium: 0, High: 0, Unknown: 0 };
-    let totalScore = 0;
-    let scoreCount = 0;
-    
-    // Calculate daily assessments for chart
-    const dailyData = {};
-    const scoreDistribution = { '0-3': 0, '3-5': 0, '5-7': 0, '7-10': 0 };
-    
-    recentAssessments.forEach(assessment => {
-      const date = new Date(assessment.created_at).toISOString().split('T')[0];
-      const score = assessment.risk_assessment_data?.weighted_total_score || 0;
-      const riskLevel = assessment.risk_assessment_data?.risk_level || 'Unknown';
-      
-      // Risk distribution
-      riskDistribution[riskLevel] = (riskDistribution[riskLevel] || 0) + 1;
-      
-      // Average score calculation
-      if (score > 0) {
-        totalScore += score;
-        scoreCount++;
-      }
-      
-      // Daily data
-      if (!dailyData[date]) {
-        dailyData[date] = { date, total: 0, Low: 0, Medium: 0, High: 0, Unknown: 0 };
-      }
-      dailyData[date].total++;
-      dailyData[date][riskLevel]++;
-      
-      // Score distribution
-      if (score < 3) scoreDistribution['0-3']++;
-      else if (score < 5) scoreDistribution['3-5']++;
-      else if (score < 7) scoreDistribution['5-7']++;
-      else scoreDistribution['7-10']++;
-    });
-    
-    const dailyAssessments = Object.values(dailyData).sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
-    );
-    
-    return {
-      recentAssessments: recentAssessments.length,
-      riskDistribution,
-      averageScore: scoreCount > 0 ? totalScore / scoreCount : 0,
-      dailyAssessments,
-      scoreDistribution,
-      avgResponseTime: '45s',
-      completionRate: Math.round((recentAssessments.length / Math.max(assessments.length, 1)) * 100)
-    };
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Loading analytics...</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-        <div className="flex items-center space-x-4">
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-          </select>
-          <button
-            onClick={loadAnalyticsData}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Assessments</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.totalAssessments || analytics.total_assessments || 0}</p>
-              <p className="text-sm text-gray-500">All time</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Recent Assessments</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.recentAssessments || 0}</p>
-              <p className="text-sm text-gray-500">Last {timeframe} days</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Average Score</p>
-              <p className="text-3xl font-bold text-gray-900">{(analytics.averageScore || analytics.average_score || 0).toFixed(1)}</p>
-              <p className="text-sm text-gray-500">Out of 10</p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <PieChart className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">High Risk</p>
-              <p className="text-3xl font-bold text-red-600">{(analytics.riskDistribution || analytics.risk_distribution)?.High || 0}</p>
-              <p className="text-sm text-gray-500">Requires attention</p>
-            </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Risk Distribution Chart */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-          <PieChart className="w-5 h-5 mr-2 text-blue-600" />
-          Risk Distribution Overview
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {Object.entries((analytics.riskDistribution || analytics.risk_distribution) || {}).map(([risk, count]) => (
-            <div key={risk} className="text-center p-4 rounded-lg border border-gray-200">
-              <div className={`w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold ${
-                risk === 'Low' ? 'bg-green-100 text-green-600' :
-                risk === 'Medium' ? 'bg-yellow-100 text-yellow-600' :
-                risk === 'High' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-              }`}>
-                {count}
-              </div>
-              <h4 className="font-semibold text-gray-900">{risk} Risk</h4>
-              <p className="text-sm text-gray-500">
-                {Math.round((count / Math.max((analytics.totalAssessments || analytics.total_assessments) || 1, 1)) * 100)}% of total
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Export Options */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Download className="w-5 h-5 mr-2 text-blue-600" />
-          Export Analytics
-        </h3>
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => apiService.exportData('csv')}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Export Summary CSV</span>
-          </button>
-          <button
-            onClick={() => apiService.exportData('csv')}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Export Detailed CSV</span>
-          </button>
-          <span className="text-sm text-gray-500">
-            Analytics data for the last {timeframe} days
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Settings Page
-const SettingsPage = () => {
-  const [apiHealth, setApiHealth] = useState('checking');
-  const [settings, setSettings] = useState({
-    notifications: true,
-    autoRefresh: false,
-    theme: 'light'
-  });
-
-  useEffect(() => {
-    checkApiHealth();
-  }, []);
-
-  const checkApiHealth = async () => {
-    try {
-      await apiService.checkBackendHealth();
-      setApiHealth('connected');
-    } catch (error) {
-      setApiHealth('disconnected');
-    }
-  };
-
-  const handleSettingChange = (setting, value) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: value
-    }));
-  };
-
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-      
-      {/* API Health Status */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Activity className="w-5 h-5 mr-2 text-blue-600" />
-          API Health Status
-        </h3>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${
-              apiHealth === 'connected' ? 'bg-green-500' :
-              apiHealth === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
-            }`}></div>
-            <span className="text-sm font-medium text-gray-900">
-              Backend API: {apiHealth === 'connected' ? 'Connected' : 
-                          apiHealth === 'disconnected' ? 'Disconnected' : 'Checking...'}
-            </span>
-          </div>
-          <button
-            onClick={checkApiHealth}
-            className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Check Status</span>
-          </button>
-        </div>
-        <div className="mt-4 text-sm text-gray-500">
-          <p>API Endpoint: {apiService.baseURL}</p>
-          <p>Last checked: {new Date().toLocaleTimeString()}</p>
-        </div>
-      </div>
-
-      {/* Application Settings */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Settings className="w-5 h-5 mr-2 text-blue-600" />
-          Application Settings
-        </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-900">Enable Notifications</label>
-              <p className="text-sm text-gray-500">Receive alerts for high-risk assessments</p>
-            </div>
-            <button
-              onClick={() => handleSettingChange('notifications', !settings.notifications)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.notifications ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.notifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-900">Auto-refresh Data</label>
-              <p className="text-sm text-gray-500">Automatically refresh assessment data</p>
-            </div>
-            <button
-              onClick={() => handleSettingChange('autoRefresh', !settings.autoRefresh)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.autoRefresh ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.autoRefresh ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-900">Theme</label>
-              <p className="text-sm text-gray-500">Choose your preferred theme</p>
-            </div>
-            <select
-              value={settings.theme}
-              onChange={(e) => handleSettingChange('theme', e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* System Information */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Info className="w-5 h-5 mr-2 text-blue-600" />
-          System Information
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Application Version</label>
-            <p className="mt-1 text-sm text-gray-900">v3.0.0</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Assessment Type</label>
-            <p className="mt-1 text-sm text-gray-900">Unified (AI + Scrapers)</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Database</label>
-            <p className="mt-1 text-sm text-gray-900">Supabase</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">AI Model</label>
-            <p className="mt-1 text-sm text-gray-900">Gemini 1.5 Flash</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Zap className="w-5 h-5 mr-2 text-blue-600" />
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            onClick={() => window.open(apiService.baseURL + '/docs', '_blank')}
-            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <FileText className="w-5 h-5 text-blue-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-900">API Documentation</div>
-              <div className="text-sm text-gray-500">View API endpoints and documentation</div>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => apiService.exportData('csv')}
-            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Download className="w-5 h-5 text-green-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-900">Export All Data</div>
-              <div className="text-sm text-gray-500">Download complete assessment data</div>
-            </div>
-          </button>
-          
-          <button
-            onClick={checkApiHealth}
-            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Activity className="w-5 h-5 text-purple-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-900">System Health Check</div>
-              <div className="text-sm text-gray-500">Verify all system components</div>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => window.location.reload()}
-            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className="w-5 h-5 text-orange-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-900">Refresh Application</div>
-              <div className="text-sm text-gray-500">Reload the entire application</div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Support & Help */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Mail className="w-5 h-5 mr-2 text-blue-600" />
-          Support & Help
-        </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-gray-900">Need Help?</div>
-              <div className="text-sm text-gray-500">Contact the development team for support</div>
-            </div>
-            <button
-              onClick={() => window.open('mailto:bidya.bibhu@chargebee.com?subject=KYB System Support', '_blank')}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              <span>Contact Support</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Main App Component
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('dashboard');
-
-  const handleLogin = (userData) => {
-    setUser(userData);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setCurrentPage('dashboard');
-  };
-
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <ChargebeeStyleDashboard />;
-      case 'assessments':
-        return <RiskAssessmentsPage />;
-      case 'analytics':
-        return <AnalyticsPage />;
-      case 'settings':
-        return <SettingsPage />;
-      default:
-        return <ChargebeeStyleDashboard />;
-    }
-  };
-
-  if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
-  return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      <Header user={user} onLogout={handleLogout} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-        <main className="flex-1 overflow-auto">
-          {renderCurrentPage()}
-        </main>
-      </div>
-    </div>
-  );
-};
-
-export default App;

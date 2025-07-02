@@ -1,4 +1,4 @@
-// frontend/src/services/api.js - FINAL FIX
+// frontend/src/services/api.js - FIXED VERSION
 
 class APIService {
   constructor() {
@@ -80,9 +80,10 @@ class APIService {
     }
   }
 
+  // FIXED: Changed endpoint from /enhanced-assessment to /assessment
   async createAssessment(domain) {
     try {
-      return await this.makeRequest(`/enhanced-assessment/${domain}`, {
+      return await this.makeRequest(`/assessment/${domain}`, {
         method: 'POST'
       });
     } catch (error) {
@@ -126,6 +127,16 @@ class APIService {
     } catch (error) {
       console.error('Failed to export data:', error);
       throw new Error('Unable to export data.');
+    }
+  }
+
+  // Additional method for PDF generation
+  async generatePDFReport(assessmentId) {
+    try {
+      return await this.makeRequest(`/assessments/${assessmentId}/pdf`);
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      throw new Error('Unable to generate PDF report.');
     }
   }
 }
