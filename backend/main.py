@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import uvicorn
 from io import StringIO
 import csv
+from auth_routes import router as auth_router
 
 # Import from MASTER risk assessment file
 from risk_assessment import (
@@ -51,6 +52,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+app.include_router(auth_router)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,

@@ -100,6 +100,7 @@ const exportToCSV = (assessments) => {
 };
 
 // Login Component with Signup Flow
+// Login Component with Supabase Authentication
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,34 +108,98 @@ const LoginPage = ({ onLogin }) => {
   const [isSignup, setIsSignup] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const validateChargebeeEmail = (email) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@chargebee\.com$/;
+    return emailRegex.test(email);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
     
-    if (isSignup && password !== confirmPassword) {
-      alert('Passwords do not match!');
+    // Validate Chargebee email domain
+    if (!validateChargebeeEmail(email)) {
+      setError('Please use a valid @chargebee.com email address');
       return;
     }
     
-    setIsLoading(true);
-    
-    setTimeout(() => {
-      if (isSignup) {
-        // Simulate signup success
-        alert('Account created successfully! Please login.');
-        setIsSignup(false);
-        setName('');
-        setConfirmPassword('');
-      } else {
-        // Login
-        onLogin({
-          email,
-          name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          role: 'Risk Analyst'
-        });
+    if (isSignup) {
+      // Signup validation
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        return;
       }
-      setIsLoading(false);
-    }, 1000);
+      
+      if (password !== confirmPassword) {
+        setError('Passwords do not match!');
+        return;
+      }
+      
+      if (name.trim().length < 2) {
+        setError('Please enter your full name');
+        return;
+      }
+      
+      setIsLoading(true);
+      
+      try {
+        // Call signup API
+        const response = await apiService.signup(email, password, name);
+        
+        if (response.success) {
+          setSuccess('Account created successfully! You can now login.');
+          setIsSignup(false);
+          setName('');
+          setConfirmPassword('');
+          setPassword('');
+          setEmail('');
+        } else {
+          setError(response.message || 'Failed to create account');
+        }
+      } catch (error) {
+        setError(error.message || 'Failed to create account');
+      } finally {
+        setIsLoading(false);
+      }
+      
+    } else {
+      // Login
+      setIsLoading(true);
+      
+      try {
+        // Call login API
+        const response = await apiService.login(email, password);
+        
+        if (response.success) {
+          // Successful login
+          onLogin(response.user);
+        } else {
+          setError(response.message || 'Invalid email or password');
+        }
+      } catch (error) {
+        setError(error.message || 'Invalid email or password');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Check email availability on blur
+  const handleEmailBlur = async () => {
+    if (isSignup && validateChargebeeEmail(email)) {
+      try {
+        const response = await apiService.verifyEmail(email);
+        if (response.exists) {
+          setError('An account with this email already exists');
+        }
+      } catch (error) {
+        // Ignore verification errors
+      }
+    }
   };
 
   return (
@@ -149,6 +214,26 @@ const LoginPage = ({ onLogin }) => {
             {isSignup ? 'Create your account' : 'Risk Assessment Platform'}
           </p>
         </div>
+
+        {/* Success message */}
+        {success && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-600 flex items-center">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {success}
+            </p>
+          </div>
+        )}
+
+        {/* Error display */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600 flex items-center">
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              {error}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {isSignup && (
@@ -174,11 +259,18 @@ const LoginPage = ({ onLogin }) => {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(''); // Clear error when user types
+              }}
+              onBlur={handleEmailBlur}
               placeholder="your.name@chargebee.com"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Must be a valid @chargebee.com email address
+            </p>
           </div>
 
           <div>
@@ -188,11 +280,20 @@ const LoginPage = ({ onLogin }) => {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(''); // Clear error when user types
+              }}
               placeholder="Enter your password"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
+              minLength={isSignup ? 6 : 1}
             />
+            {isSignup && (
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum 6 characters
+              </p>
+            )}
           </div>
 
           {isSignup && (
@@ -203,7 +304,10 @@ const LoginPage = ({ onLogin }) => {
               <input
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setError(''); // Clear error when user types
+                }}
                 placeholder="Confirm your password"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
@@ -235,6 +339,8 @@ const LoginPage = ({ onLogin }) => {
                 setIsSignup(!isSignup);
                 setPassword('');
                 setConfirmPassword('');
+                setError('');
+                setSuccess('');
               }}
               className="ml-2 text-blue-600 hover:text-blue-700 font-semibold"
             >
@@ -242,6 +348,15 @@ const LoginPage = ({ onLogin }) => {
             </button>
           </p>
         </div>
+
+        {/* Forgot password link */}
+        {!isSignup && (
+          <div className="mt-4 text-center">
+            <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
+              Forgot your password?
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1818,17 +1933,58 @@ const SettingsPage = () => {
 };
 
 // Main App Component
+// Update the Main App Component in App.js to handle auth state
+
+// Main App Component
 const App = () => {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      // Check if we have a stored token
+      const token = localStorage.getItem('auth_token');
+      const storedUser = localStorage.getItem('user_data');
+      
+      if (token && storedUser) {
+        // Verify token is still valid
+        const currentUser = await apiService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        } else {
+          // Token expired or invalid
+          apiService.clearAuthTokens();
+        }
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      apiService.clearAuthTokens();
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
 
   const handleLogin = (userData) => {
     setUser(userData);
+    // Store user data for persistence
+    localStorage.setItem('user_data', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setCurrentPage('dashboard');
+  const handleLogout = async () => {
+    try {
+      await apiService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setCurrentPage('dashboard');
+    }
   };
 
   const renderCurrentPage = () => {
@@ -1846,6 +2002,18 @@ const App = () => {
     }
   };
 
+  // Show loading screen while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -1862,5 +2030,7 @@ const App = () => {
     </div>
   );
 };
+
+export default App;
 
 export default App;

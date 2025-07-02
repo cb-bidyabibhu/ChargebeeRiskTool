@@ -1,8 +1,10 @@
-// frontend/src/services/api.js - FIXED VERSION
+// frontend/src/services/api.js - WITH AUTHENTICATION
 
 class APIService {
   constructor() {
     this.baseURL = this.getBackendURL();
+    this.token = localStorage.getItem('auth_token');
+    this.refreshToken = localStorage.getItem('refresh_token');
     console.log('API Service initialized with baseURL:', this.baseURL);
   }
 
@@ -24,6 +26,21 @@ class APIService {
     return 'https://chargebee-kyb-backend.onrender.com';
   }
 
+  setAuthTokens(accessToken, refreshToken) {
+    this.token = accessToken;
+    this.refreshToken = refreshToken;
+    localStorage.setItem('auth_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+  }
+
+  clearAuthTokens() {
+    this.token = null;
+    this.refreshToken = null;
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_data');
+  }
+
   async makeRequest(endpoint, options = {}) {
     const maxRetries = 3;
     let lastError;
@@ -32,12 +49,19 @@ class APIService {
       try {
         console.log(`Attempt ${attempt}: ${this.baseURL}${endpoint}`);
         
+        // Add auth token to headers if available
+        const headers = {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        };
+        
+        if (this.token && !endpoint.includes('/auth/')) {
+          headers['Authorization'] = `Bearer ${this.token}`;
+        }
+        
         const response = await fetch(`${this.baseURL}${endpoint}`, {
           ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
+          headers,
           signal: AbortSignal.timeout(30000),
         });
 
@@ -61,6 +85,87 @@ class APIService {
     throw new Error(`All ${maxRetries} attempts failed. Last error: ${lastError.message}`);
   }
 
+  // Authentication methods
+  async signup(email, password, fullName) {
+    try {
+      const response = await this.makeRequest('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: fullName
+        })
+      });
+      return response;
+    } catch (error) {
+      console.error('Signup failed:', error);
+      throw new Error('Failed to create account. Please try again.');
+    }
+  }
+
+  async login(email, password) {
+    try {
+      const response = await this.makeRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      
+      if (response.success && response.session) {
+        // Store tokens
+        this.setAuthTokens(response.session.access_token, response.session.refresh_token);
+        
+        // Store user data
+        localStorage.setItem('user_data', JSON.stringify(response.user));
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw new Error('Invalid email or password');
+    }
+  }
+
+  async logout() {
+    try {
+      await this.makeRequest('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ access_token: this.token })
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      this.clearAuthTokens();
+    }
+  }
+
+  async getCurrentUser() {
+    try {
+      const response = await this.makeRequest('/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        }
+      });
+      return response.user;
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
+  }
+
+  async verifyEmail(email) {
+    try {
+      const response = await this.makeRequest('/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+      return response;
+    } catch (error) {
+      console.error('Email verification failed:', error);
+      return { valid: false, message: 'Failed to verify email' };
+    }
+  }
+
+  // Existing methods remain the same
   async checkBackendHealth() {
     try {
       const health = await this.makeRequest('/health');
@@ -80,7 +185,6 @@ class APIService {
     }
   }
 
-  // FIXED: Changed endpoint from /enhanced-assessment to /assessment
   async createAssessment(domain) {
     try {
       return await this.makeRequest(`/assessment/${domain}`, {
@@ -130,7 +234,6 @@ class APIService {
     }
   }
 
-  // Additional method for PDF generation
   async generatePDFReport(assessmentId) {
     try {
       return await this.makeRequest(`/assessments/${assessmentId}/pdf`);
