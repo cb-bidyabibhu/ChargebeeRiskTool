@@ -37,11 +37,15 @@ cryptography==41.0.7
 # Async & Performance
 asyncio-throttle==1.0.2
 
+tqdm==4.67.1
+pysocks==1.7.1
 python-dateutil==2.8.2
 typing-extensions>=4.12.2
 
 # Authentication
 bcrypt==4.1.2
+pydantic[email]>=2.11.7  # This fixes your deployment issue!
+email-validator>=2.1.0  # Explicitly adding this too
 
 # Production Server
 gunicorn==21.2.0
@@ -55,3 +59,4 @@ pytest-asyncio==0.21.1
 
 setuptools>=65.0.0
 wheel
+
