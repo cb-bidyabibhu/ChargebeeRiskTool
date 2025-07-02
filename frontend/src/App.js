@@ -151,12 +151,20 @@ const LoginPage = ({ onLogin }) => {
         const response = await apiService.signup(email, password, name);
         
         if (response.success) {
-          setSuccess('Account created successfully! You can now login.');
-          setIsSignup(false);
+          if (response.dev_mode) {
+            // In dev mode, auto-login after signup
+            setSuccess('Account created! Logging you in...');
+            setTimeout(() => {
+              setIsSignup(false);
+              handleLogin();
+            }, 1000);
+          } else {
+            setSuccess('Account created successfully! Please check your email to verify, then login.');
+            setIsSignup(false);
+          }
           setName('');
           setConfirmPassword('');
           setPassword('');
-          setEmail('');
         } else {
           setError(response.message || 'Failed to create account');
         }
@@ -168,23 +176,7 @@ const LoginPage = ({ onLogin }) => {
       
     } else {
       // Login
-      setIsLoading(true);
-      
-      try {
-        // Call login API
-        const response = await apiService.login(email, password);
-        
-        if (response.success) {
-          // Successful login
-          onLogin(response.user);
-        } else {
-          setError(response.message || 'Invalid email or password');
-        }
-      } catch (error) {
-        setError(error.message || 'Invalid email or password');
-      } finally {
-        setIsLoading(false);
-      }
+      handleLogin();
     }
   };
 
@@ -1970,10 +1962,24 @@ const App = () => {
     }
   };
 
-  const handleLogin = (userData) => {
-    setUser(userData);
-    // Store user data for persistence
-    localStorage.setItem('user_data', JSON.stringify(userData));
+  const handleLogin = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Call login API
+      const response = await apiService.login(email, password);
+      
+      if (response.success) {
+        // Successful login
+        onLogin(response.user);
+      } else {
+        setError(response.message || 'Invalid email or password');
+      }
+    } catch (error) {
+      setError(error.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = async () => {

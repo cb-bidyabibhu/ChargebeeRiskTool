@@ -85,12 +85,50 @@ async def sign_up(request: SignUpRequest):
         # Get the correct redirect URL
         redirect_url = get_redirect_url()
         
-        # Create user with Supabase Auth
+        # For development - skip Supabase if not configured properly
+        if os.getenv("ENVIRONMENT") == "development":
+            # Check if Supabase is properly configured
+            try:
+                # Create user with Supabase Auth
+                response = supabase.auth.sign_up({
+                    "email": request.email,
+                    "password": request.password,
+                    "options": {
+                        "email_redirect_to": redirect_url,
+                        "data": {
+                            "full_name": request.full_name,
+                            "company_name": request.company_name,
+                            "created_at": datetime.now().isoformat()
+                        }
+                    }
+                })
+                
+                if response.user:
+                    return {
+                        "success": True,
+                        "message": "User created successfully. Please check your email to verify your account.",
+                        "user_id": response.user.id,
+                        "email": response.user.email,
+                        "redirect_url": redirect_url
+                    }
+            except Exception as supabase_error:
+                # If Supabase fails in dev, create mock user
+                print(f"Supabase signup failed: {supabase_error}")
+                return {
+                    "success": True,
+                    "message": "User created successfully (dev mode - no email verification needed)",
+                    "user_id": "dev-" + request.email.replace("@", "-"),
+                    "email": request.email,
+                    "redirect_url": redirect_url,
+                    "dev_mode": True
+                }
+        
+        # Production mode - use Supabase normally
         response = supabase.auth.sign_up({
             "email": request.email,
             "password": request.password,
             "options": {
-                "email_redirect_to": redirect_url,  # This fixes the redirect issue!
+                "email_redirect_to": redirect_url,
                 "data": {
                     "full_name": request.full_name,
                     "company_name": request.company_name,
@@ -105,7 +143,7 @@ async def sign_up(request: SignUpRequest):
                 "message": "User created successfully. Please check your email to verify your account.",
                 "user_id": response.user.id,
                 "email": response.user.email,
-                "redirect_url": redirect_url  # Include this in response for frontend
+                "redirect_url": redirect_url
             }
         else:
             raise HTTPException(status_code=400, detail="Failed to create user")
@@ -122,47 +160,69 @@ async def sign_in(request: SignInRequest):
     Sign in with email and password
     """
     try:
-        # For development/testing - simple auth bypass
+        # For development/testing - allow simple auth bypass
         if os.getenv("ENVIRONMENT") == "development" and request.email.endswith("@chargebee.com"):
-            # Mock response for development
-            return {
-                "success": True,
-                "message": "Signed in successfully (dev mode)",
-                "user": {
-                    "id": "dev-user-id",
-                    "email": request.email,
-                    "user_metadata": {"full_name": "Dev User"}
-                },
-                "session": {
-                    "access_token": "dev-token",
-                    "refresh_token": "dev-refresh",
-                    "expires_at": 9999999999
-                }
+            # First check if it's a known dev user
+            known_dev_users = {
+                "bidya.bibhu@chargebee.com": "Bidya Sharma",
+                "test@chargebee.com": "Test User"
             }
-        
-        response = supabase.auth.sign_in_with_password({
-            "email": request.email,
-            "password": request.password
-        })
-        
-        if response.user:
-            return {
-                "success": True,
-                "message": "Signed in successfully",
-                "user": {
-                    "id": response.user.id,
-                    "email": response.user.email,
-                    "user_metadata": response.user.user_metadata
-                },
-                "session": {
-                    "access_token": response.session.access_token,
-                    "refresh_token": response.session.refresh_token,
-                    "expires_at": response.session.expires_at
-                }
-            }
-        else:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
             
+            if request.email in known_dev_users or request.password == "devmode123":
+                # Mock response for development
+                return {
+                    "success": True,
+                    "message": "Signed in successfully (dev mode)",
+                    "user": {
+                        "id": "dev-user-" + request.email.replace("@", "-"),
+                        "email": request.email,
+                        "user_metadata": {"full_name": known_dev_users.get(request.email, "Dev User")}
+                    },
+                    "session": {
+                        "access_token": "dev-token-" + request.email.replace("@", "-"),
+                        "refresh_token": "dev-refresh-" + request.email.replace("@", "-"),
+                        "expires_at": 9999999999
+                    }
+                }
+        
+        # Try Supabase auth
+        try:
+            response = supabase.auth.sign_in_with_password({
+                "email": request.email,
+                "password": request.password
+            })
+            
+            if response.user:
+                return {
+                    "success": True,
+                    "message": "Signed in successfully",
+                    "user": {
+                        "id": response.user.id,
+                        "email": response.user.email,
+                        "user_metadata": response.user.user_metadata
+                    },
+                    "session": {
+                        "access_token": response.session.access_token,
+                        "refresh_token": response.session.refresh_token,
+                        "expires_at": response.session.expires_at
+                    }
+                }
+            else:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+        except Exception as supabase_error:
+            # In development, be more lenient
+            if os.getenv("ENVIRONMENT") == "development":
+                print(f"Supabase signin failed: {supabase_error}")
+                # Still return error but with helpful message
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Login failed. In dev mode, use password 'devmode123' for any @chargebee.com email"
+                )
+            else:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+    except HTTPException:
+        raise
     except Exception as e:
         error_message = str(e)
         if "Invalid login credentials" in error_message:

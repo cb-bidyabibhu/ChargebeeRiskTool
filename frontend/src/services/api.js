@@ -1,4 +1,4 @@
-// frontend/src/services/api.js - WITH AUTHENTICATION
+// frontend/src/services/api.js - FIXED WITH CORRECT ENDPOINTS
 
 class APIService {
   constructor() {
@@ -13,7 +13,7 @@ class APIService {
     
     // Check if we're on Render frontend
     if (currentHostname.includes('onrender.com')) {
-      // REPLACE THIS URL WITH YOUR ACTUAL BACKEND URL FROM RENDER DASHBOARD
+      // Your actual backend URL from the logs
       return 'https://chargebee-kyb-backend.onrender.com';
     }
     
@@ -85,7 +85,7 @@ class APIService {
     throw new Error(`All ${maxRetries} attempts failed. Last error: ${lastError.message}`);
   }
 
-  // Authentication methods
+  // Authentication methods - FIXED ENDPOINTS
   async signup(email, password, fullName) {
     try {
       const response = await this.makeRequest('/auth/signup', {
@@ -105,7 +105,8 @@ class APIService {
 
   async login(email, password) {
     try {
-      const response = await this.makeRequest('/auth/login', {
+      // FIXED: Changed from /auth/login to /auth/signin
+      const response = await this.makeRequest('/auth/signin', {
         method: 'POST',
         body: JSON.stringify({ email, password })
       });
@@ -127,9 +128,12 @@ class APIService {
 
   async logout() {
     try {
-      await this.makeRequest('/auth/logout', {
+      // FIXED: Changed from /auth/logout to /auth/signout
+      await this.makeRequest('/auth/signout', {
         method: 'POST',
-        body: JSON.stringify({ access_token: this.token })
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        }
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -140,7 +144,9 @@ class APIService {
 
   async getCurrentUser() {
     try {
-      const response = await this.makeRequest('/auth/me', {
+      // FIXED: Changed from /auth/me to /auth/user
+      const response = await this.makeRequest('/auth/user', {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.token}`
         }
@@ -154,18 +160,16 @@ class APIService {
 
   async verifyEmail(email) {
     try {
-      const response = await this.makeRequest('/auth/verify-email', {
-        method: 'POST',
-        body: JSON.stringify({ email })
-      });
-      return response;
+      // This endpoint doesn't exist in backend - let's skip it
+      console.log('Email verification check skipped');
+      return { exists: false };
     } catch (error) {
       console.error('Email verification failed:', error);
-      return { valid: false, message: 'Failed to verify email' };
+      return { exists: false };
     }
   }
 
-  // Existing methods remain the same
+  // Assessment methods remain the same
   async checkBackendHealth() {
     try {
       const health = await this.makeRequest('/health');
