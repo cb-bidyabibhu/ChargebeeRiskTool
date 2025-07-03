@@ -439,23 +439,6 @@ def collect_amazing_data(domain: str) -> Dict:
                 "status": "scrapers_unavailable"
             }
         }
-            
-    except Exception as e:
-        print(f"    ❌ Industry classification failed: {e}")
-        scraped_data["industry_classification"] = {
-            "error": str(e),
-            "_scraper_metadata": {
-                "scraper_name": "industry_classification",
-                "description": "AI-powered business categorization",
-                "execution_time": 0,
-                "quality": "failed",
-                "timestamp": datetime.now().isoformat(),
-                "source_url": f"https://{domain}",
-                "source_type": "ai_analysis",
-                "status": "failed_exception",
-                "error_type": type(e).__name__
-            }
-        }
         scraped_data["scrapers_failed"] += 1
     
     # 🎯 FINAL SUMMARY & QUALITY ASSESSMENT
