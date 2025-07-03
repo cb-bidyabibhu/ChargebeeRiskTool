@@ -42,7 +42,8 @@ class APIService {
   }
 
   async makeRequest(endpoint, options = {}) {
-    const maxRetries = 3;
+    const maxRetries = 8;
+    const timeoutMs = 60000;
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -62,7 +63,7 @@ class APIService {
         const response = await fetch(`${this.baseURL}${endpoint}`, {
           ...options,
           headers,
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(timeoutMs),
         });
 
         if (!response.ok) {
@@ -233,9 +234,10 @@ class APIService {
     }
   }
 
-  async pollAssessmentUntilComplete(assessmentId, onProgressUpdate = null, maxWaitTime = 600000) {
+  async pollAssessmentUntilComplete(assessmentId, onProgressUpdate = null, maxWaitTime = 900000) {
     const startTime = Date.now();
-    const pollInterval = 3000; // 3 seconds
+    const pollInterval = 4000;
+    let lastError = null;
     while (Date.now() - startTime < maxWaitTime) {
       try {
         const progress = await this.getAssessmentProgress(assessmentId);
@@ -250,11 +252,17 @@ class APIService {
         }
         await new Promise(resolve => setTimeout(resolve, pollInterval));
       } catch (error) {
+        lastError = error;
         console.error('Polling error:', error);
-        throw error;
+        if (error.message && error.message.includes('timeout')) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          continue;
+        } else {
+          throw error;
+        }
       }
     }
-    throw new Error('Assessment timed out after 10 minutes');
+    return { result: null, error: 'The backend is waking up or is slow to respond. Please wait a minute and try again.' };
   }
 
   async getAssessment(domain) {

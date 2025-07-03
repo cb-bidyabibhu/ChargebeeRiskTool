@@ -589,6 +589,7 @@ const ChargebeeStyleDashboard = () => {
   const [assessmentProgress, setAssessmentProgress] = useState(null);
   const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
   const [showProcessingMessage, setShowProcessingMessage] = useState(false);
+  const [assessmentPollingError, setAssessmentPollingError] = useState(null);
   
   // Enhanced state management
   const {
@@ -656,6 +657,51 @@ const ChargebeeStyleDashboard = () => {
     }
   };
 
+  // Poll function for assessment completion
+  const pollAssessment = async (assessmentId, domainName) => {
+    try {
+      const result = await apiService.pollAssessmentUntilComplete(
+        assessmentId,
+        (progress) => {
+          setAssessmentProgress(progress);
+          updateProgress(assessmentId, progress);
+        }
+      );
+      if (result && result.error) {
+        setAssessmentPollingError(result.error);
+        setAssessmentProgress(null);
+        setShowProcessingMessage(false);
+        removeInProgressAssessment(assessmentId);
+        localStorage.removeItem('currentAssessmentId');
+        localStorage.removeItem('currentAssessmentDomain');
+        setIsAssessing(false);
+        setCurrentAssessmentId(null);
+        return;
+      }
+      setCurrentAssessment(result.result);
+      setAssessmentProgress(null);
+      setShowProcessingMessage(false);
+      removeInProgressAssessment(assessmentId);
+      addToast(`Assessment completed for ${domainName}`, 'success');
+      localStorage.removeItem('currentAssessmentId');
+      localStorage.removeItem('currentAssessmentDomain');
+      setTimeout(loadRecentAssessments, 1000);
+    } catch (error) {
+      setAssessmentProgress(null);
+      setShowProcessingMessage(false);
+      removeInProgressAssessment(assessmentId);
+      addToast(`Assessment failed for ${domainName}: ${error.message}`, 'error');
+      localStorage.removeItem('currentAssessmentId');
+      localStorage.removeItem('currentAssessmentDomain');
+      setAssessmentPollingError(error.message);
+      setIsAssessing(false);
+      setCurrentAssessmentId(null);
+    } finally {
+      setIsAssessing(false);
+      setCurrentAssessmentId(null);
+    }
+  };
+
   // FIXED: Handle NEW assessment with progress tracking
   const handleStartAssessment = async () => {
     if (!domainInput.trim()) return;
@@ -663,6 +709,7 @@ const ChargebeeStyleDashboard = () => {
     setAssessmentProgress({ status: 'processing', progress: 0, current_step: 'Starting assessment...' });
     setCurrentAssessment(null);
     setShowProcessingMessage(false);
+    setAssessmentPollingError(null);
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
       // Start async assessment, get assessment_id
@@ -688,6 +735,17 @@ const ChargebeeStyleDashboard = () => {
               updateProgress(assessmentId, progress);
             }
           );
+          if (result && result.error) {
+            setAssessmentPollingError(result.error);
+            setAssessmentProgress(null);
+            setShowProcessingMessage(false);
+            removeInProgressAssessment(assessmentId);
+            localStorage.removeItem('currentAssessmentId');
+            localStorage.removeItem('currentAssessmentDomain');
+            setIsAssessing(false);
+            setCurrentAssessmentId(null);
+            return;
+          }
           setCurrentAssessment(result.result);
           setAssessmentProgress(null);
           setShowProcessingMessage(false);
@@ -703,7 +761,9 @@ const ChargebeeStyleDashboard = () => {
           addToast(`Assessment failed for ${domainInput}: ${error.message}`, 'error');
           localStorage.removeItem('currentAssessmentId');
           localStorage.removeItem('currentAssessmentDomain');
-          alert(`Assessment failed: ${error.message}`);
+          setAssessmentPollingError(error.message);
+          setIsAssessing(false);
+          setCurrentAssessmentId(null);
         } finally {
           setIsAssessing(false);
           setCurrentAssessmentId(null);
@@ -888,6 +948,28 @@ const ChargebeeStyleDashboard = () => {
               </button>
             </div>
             <div className="text-xs mt-2 text-gray-500">Note: If the server was sleeping, this may take a few minutes to start. You can safely leave and check back later.</div>
+          </div>
+        )}
+        {assessmentPollingError && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 flex flex-col items-start">
+            <div className="font-semibold mb-1">Assessment could not complete</div>
+            <div className="text-xs mb-2">{assessmentPollingError}</div>
+            <button
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+              onClick={() => {
+                setAssessmentPollingError(null);
+                setIsAssessing(true);
+                setShowProcessingMessage(true);
+                poll();
+              }}
+              disabled={isAssessing}
+            >
+              {isAssessing ? (
+                <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />Retrying...</>
+              ) : (
+                'Retry'
+              )}
+            </button>
           </div>
         )}
 
