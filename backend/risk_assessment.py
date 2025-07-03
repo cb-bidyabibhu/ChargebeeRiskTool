@@ -51,30 +51,91 @@ except ImportError:
     print("⚠️ Enhanced prompt builder not available, using standard prompt")
 
 # --- SCRAPER IMPORTS ---
+# Initialize scraper availability tracking
+SCRAPERS_AVAILABLE = False
+AVAILABLE_SCRAPERS = {}
+
 try:
+    # Import scrapers individually to handle failures gracefully
     from scrapers.check_https import check_https
-    from scrapers.whois_sraper import get_whois_data
-    from scrapers.check_privacy_term import check_privacy_term
-    from scrapers.check_linkedin import check_social_presence
-    from scrapers.google_safe_browsing_scraper import scrape_google_safe_browsing
-    from scrapers.tranco_list_scraper import scrape_tranco_list
-    from scrapers.ssl_org_scraper import scrape_ssl_org
-    from scrapers.ipvoid_scraper import scrape_ipvoid
-    from scrapers.mcc_classifier_gemini_final import classify_mcc_using_gemini, extract_text_from_url
-    SCRAPERS_AVAILABLE = True
-    print("✅ All scrapers imported successfully")
+    AVAILABLE_SCRAPERS['check_https'] = check_https
+    print("✅ HTTPS scraper imported")
 except ImportError as e:
-    SCRAPERS_AVAILABLE = False
-    print(f"⚠️ Scrapers not available: {e}")
+    print(f"⚠️ HTTPS scraper not available: {e}")
+
+try:
+    from scrapers.whois_sraper import get_whois_data
+    AVAILABLE_SCRAPERS['whois_data'] = get_whois_data
+    print("✅ WHOIS scraper imported")
+except ImportError as e:
+    print(f"⚠️ WHOIS scraper not available: {e}")
+
+try:
+    from scrapers.check_privacy_term import check_privacy_term
+    AVAILABLE_SCRAPERS['privacy_terms'] = check_privacy_term
+    print("✅ Privacy terms scraper imported")
+except ImportError as e:
+    print(f"⚠️ Privacy terms scraper not available: {e}")
+
+try:
+    from scrapers.check_linkedin import check_social_presence
+    AVAILABLE_SCRAPERS['social_presence'] = check_social_presence
+    print("✅ Social presence scraper imported")
+except ImportError as e:
+    print(f"⚠️ Social presence scraper not available: {e}")
+
+try:
+    from scrapers.google_safe_browsing_scraper import scrape_google_safe_browsing
+    AVAILABLE_SCRAPERS['google_safe_browsing'] = scrape_google_safe_browsing
+    print("✅ Google Safe Browsing scraper imported")
+except ImportError as e:
+    print(f"⚠️ Google Safe Browsing scraper not available: {e}")
+
+try:
+    from scrapers.tranco_list_scraper import scrape_tranco_list
+    AVAILABLE_SCRAPERS['tranco_ranking'] = scrape_tranco_list
+    print("✅ Tranco ranking scraper imported")
+except ImportError as e:
+    print(f"⚠️ Tranco ranking scraper not available: {e}")
+
+try:
+    from scrapers.ssl_org_scraper import scrape_ssl_org
+    AVAILABLE_SCRAPERS['ssl_org_report'] = scrape_ssl_org
+    print("✅ SSL.org scraper imported")
+except ImportError as e:
+    print(f"⚠️ SSL.org scraper not available: {e}")
+
+try:
+    from scrapers.ipvoid_scraper import scrape_ipvoid
+    AVAILABLE_SCRAPERS['ipvoid'] = scrape_ipvoid
+    print("✅ IPVoid scraper imported")
+except ImportError as e:
+    print(f"⚠️ IPVoid scraper not available: {e}")
+
+try:
+    from scrapers.mcc_classifier_gemini_final import classify_mcc_using_gemini, extract_text_from_url
+    AVAILABLE_SCRAPERS['industry_classification'] = classify_mcc_using_gemini
+    AVAILABLE_SCRAPERS['extract_text_from_url'] = extract_text_from_url
+    print("✅ Industry classification scraper imported")
+except ImportError as e:
+    print(f"⚠️ Industry classification scraper not available: {e}")
+
+# Set overall scraper availability
+if len(AVAILABLE_SCRAPERS) > 0:
+    SCRAPERS_AVAILABLE = True
+    print(f"✅ {len(AVAILABLE_SCRAPERS)} scrapers available: {list(AVAILABLE_SCRAPERS.keys())}")
+else:
+    print("❌ No scrapers available")
 
 # --- OFAC SCRAPER IMPORT ---
 try:
     from scrapers.ofac_sanctions_scraper import check_ofac_sanctions
+    AVAILABLE_SCRAPERS['ofac_sanctions'] = check_ofac_sanctions
     OFAC_AVAILABLE = True
     print("✅ OFAC sanctions scraper imported")
-except ImportError:
+except ImportError as e:
     OFAC_AVAILABLE = False
-    print("⚠️ OFAC sanctions scraper not available")
+    print(f"⚠️ OFAC sanctions scraper not available: {e}")
 
 # --- UTILITY FUNCTIONS ---
 def extract_json_from_response(text: str) -> dict:
@@ -238,34 +299,38 @@ def collect_amazing_data(domain: str) -> Dict:
     
     all_scrapers = []
     
-    # Phase 1: Foundation Scrapers
-    foundation_scrapers = [
-        ("https_check", check_https, "SSL/HTTPS security verification", f"https://{domain}"),
-        ("whois_data", get_whois_data, "Domain registration and ownership", f"whois://{domain}"),
-        ("privacy_terms", check_privacy_term, "Legal documentation compliance", f"https://{domain}/privacy"),
-    ]
+    # Phase 1: Foundation Scrapers (only if available)
+    foundation_scrapers = []
+    if 'check_https' in AVAILABLE_SCRAPERS:
+        foundation_scrapers.append(("https_check", AVAILABLE_SCRAPERS['check_https'], "SSL/HTTPS security verification", f"https://{domain}"))
+    if 'whois_data' in AVAILABLE_SCRAPERS:
+        foundation_scrapers.append(("whois_data", AVAILABLE_SCRAPERS['whois_data'], "Domain registration and ownership", f"whois://{domain}"))
+    if 'privacy_terms' in AVAILABLE_SCRAPERS:
+        foundation_scrapers.append(("privacy_terms", AVAILABLE_SCRAPERS['privacy_terms'], "Legal documentation compliance", f"https://{domain}/privacy"))
     all_scrapers.extend(foundation_scrapers)
     
-    # Phase 2: Security Scrapers
-    security_scrapers = [
-        ("google_safe_browsing", scrape_google_safe_browsing, "Security reputation analysis", f"https://transparencyreport.google.com/safe-browsing/search?url={domain}"),
-        ("ssl_org_report", scrape_ssl_org, "SSL security grade assessment", f"https://www.ssllabs.com/ssltest/analyze.html?d={domain}"),
-        ("ipvoid", scrape_ipvoid, "IP reputation and geolocation", f"https://www.ipvoid.com/ip-blacklist-check/"),
-    ]
+    # Phase 2: Security Scrapers (only if available)
+    security_scrapers = []
+    if 'google_safe_browsing' in AVAILABLE_SCRAPERS:
+        security_scrapers.append(("google_safe_browsing", AVAILABLE_SCRAPERS['google_safe_browsing'], "Security reputation analysis", f"https://transparencyreport.google.com/safe-browsing/search?url={domain}"))
+    if 'ssl_org_report' in AVAILABLE_SCRAPERS:
+        security_scrapers.append(("ssl_org_report", AVAILABLE_SCRAPERS['ssl_org_report'], "SSL security grade assessment", f"https://www.ssllabs.com/ssltest/analyze.html?d={domain}"))
+    if 'ipvoid' in AVAILABLE_SCRAPERS:
+        security_scrapers.append(("ipvoid", AVAILABLE_SCRAPERS['ipvoid'], "IP reputation and geolocation", f"https://www.ipvoid.com/ip-blacklist-check/"))
     all_scrapers.extend(security_scrapers)
     
     # Add OFAC if available
-    if OFAC_AVAILABLE:
+    if 'ofac_sanctions' in AVAILABLE_SCRAPERS:
         company_name = extract_company_name_from_domain(domain)
-        security_scrapers.append(("ofac_sanctions", lambda d: check_ofac_sanctions(company_name, d), "OFAC sanctions screening", "https://sanctionssearch.ofac.treas.gov/"))
+        all_scrapers.append(("ofac_sanctions", lambda d: AVAILABLE_SCRAPERS['ofac_sanctions'](company_name, d), "OFAC sanctions screening", "https://sanctionssearch.ofac.treas.gov/"))
         print(f"   💼 Including OFAC sanctions screening for: {company_name}")
-        all_scrapers.append(("ofac_sanctions", lambda d: check_ofac_sanctions(company_name, d), "OFAC sanctions screening", "https://sanctionssearch.ofac.treas.gov/"))
     
-    # Phase 3: Business Intelligence Scrapers
-    business_scrapers = [
-        ("social_presence", check_social_presence, "LinkedIn and social media analysis", f"https://www.linkedin.com/company/{domain.split('.')[0]}"),
-        ("tranco_ranking", scrape_tranco_list, "Website traffic and ranking", "https://tranco-list.eu/"),
-    ]
+    # Phase 3: Business Intelligence Scrapers (only if available)
+    business_scrapers = []
+    if 'social_presence' in AVAILABLE_SCRAPERS:
+        business_scrapers.append(("social_presence", AVAILABLE_SCRAPERS['social_presence'], "LinkedIn and social media analysis", f"https://www.linkedin.com/company/{domain.split('.')[0]}"))
+    if 'tranco_ranking' in AVAILABLE_SCRAPERS:
+        business_scrapers.append(("tranco_ranking", AVAILABLE_SCRAPERS['tranco_ranking'], "Website traffic and ranking", "https://tranco-list.eu/"))
     all_scrapers.extend(business_scrapers)
     
     # 🚀 EXECUTE ALL SCRAPERS SEQUENTIALLY
@@ -283,38 +348,55 @@ def collect_amazing_data(domain: str) -> Dict:
     print(f"🤖 FINAL PHASE: AI-POWERED INDUSTRY CLASSIFICATION")
     print(f"📊 All scrapers completed. Now running industry classification...")
     
-    try:
-        scraped_data["scrapers_attempted"] += 1
-        print(f"  🤖 Running industry_classification: AI-powered business categorization")
-        
-        website_url = f"https://{domain}"
-        website_content = extract_text_from_url(website_url)
-        
-        if website_content and not website_content.startswith("Failed"):
-            mcc_result = classify_mcc_using_gemini(domain, website_content[:1500])
+    # Only run industry classification if the scrapers are available
+    if 'industry_classification' in AVAILABLE_SCRAPERS and 'extract_text_from_url' in AVAILABLE_SCRAPERS:
+        try:
+            scraped_data["scrapers_attempted"] += 1
+            print(f"  🤖 Running industry_classification: AI-powered business categorization")
             
-            if mcc_result:
-                # Add source metadata to industry classification
-                mcc_result["_scraper_metadata"] = {
-                    "scraper_name": "industry_classification",
-                    "description": "AI-powered business categorization",
-                    "execution_time": 0,  # Will be updated
-                    "quality": "high",
-                    "timestamp": datetime.now().isoformat(),
-                    "source_url": website_url,
-                    "source_type": "ai_analysis",
-                    "data_freshness": "real_time",
-                    "confidence": mcc_result.get('confidence', 0.5)
-                }
+            website_url = f"https://{domain}"
+            website_content = AVAILABLE_SCRAPERS['extract_text_from_url'](website_url)
+            
+            if website_content and not website_content.startswith("Failed"):
+                mcc_result = AVAILABLE_SCRAPERS['industry_classification'](domain, website_content[:1500])
                 
-                scraped_data["industry_classification"] = mcc_result
-                scraped_data["scrapers_successful"] += 1
-                print(f"    ✅ Industry classification completed successfully")
-                print(f"      🏭 Industry: {mcc_result.get('industry_category', 'Unknown')}")
-                print(f"      🎯 Confidence: {mcc_result.get('confidence', 0)}")
+                if mcc_result:
+                    # Add source metadata to industry classification
+                    mcc_result["_scraper_metadata"] = {
+                        "scraper_name": "industry_classification",
+                        "description": "AI-powered business categorization",
+                        "execution_time": 0,  # Will be updated
+                        "quality": "high",
+                        "timestamp": datetime.now().isoformat(),
+                        "source_url": website_url,
+                        "source_type": "ai_analysis",
+                        "data_freshness": "real_time",
+                        "confidence": mcc_result.get('confidence', 0.5)
+                    }
+                    
+                    scraped_data["industry_classification"] = mcc_result
+                    scraped_data["scrapers_successful"] += 1
+                    print(f"    ✅ Industry classification completed successfully")
+                    print(f"      🏭 Industry: {mcc_result.get('industry_category', 'Unknown')}")
+                    print(f"      🎯 Confidence: {mcc_result.get('confidence', 0)}")
+                else:
+                    scraped_data["industry_classification"] = {
+                        "error": "Classification failed",
+                        "_scraper_metadata": {
+                            "scraper_name": "industry_classification",
+                            "description": "AI-powered business categorization",
+                            "execution_time": 0,
+                            "quality": "failed",
+                            "timestamp": datetime.now().isoformat(),
+                            "source_url": website_url,
+                            "source_type": "ai_analysis",
+                            "status": "failed_classification"
+                        }
+                    }
+                    scraped_data["scrapers_failed"] += 1
             else:
                 scraped_data["industry_classification"] = {
-                    "error": "Classification failed",
+                    "error": "Failed to extract website content",
                     "_scraper_metadata": {
                         "scraper_name": "industry_classification",
                         "description": "AI-powered business categorization",
@@ -323,25 +405,40 @@ def collect_amazing_data(domain: str) -> Dict:
                         "timestamp": datetime.now().isoformat(),
                         "source_url": website_url,
                         "source_type": "ai_analysis",
-                        "status": "failed_classification"
+                        "status": "failed_content_extraction"
                     }
                 }
                 scraped_data["scrapers_failed"] += 1
-        else:
+        except Exception as e:
+            print(f"    ❌ Industry classification failed: {e}")
             scraped_data["industry_classification"] = {
-                "error": "Failed to extract website content",
+                "error": f"Industry classification exception: {str(e)}",
                 "_scraper_metadata": {
                     "scraper_name": "industry_classification",
                     "description": "AI-powered business categorization",
                     "execution_time": 0,
                     "quality": "failed",
                     "timestamp": datetime.now().isoformat(),
-                    "source_url": website_url,
                     "source_type": "ai_analysis",
-                    "status": "failed_content_extraction"
+                    "status": "failed_exception",
+                    "error_type": type(e).__name__
                 }
             }
             scraped_data["scrapers_failed"] += 1
+    else:
+        print(f"  ⚠️ Industry classification scrapers not available")
+        scraped_data["industry_classification"] = {
+            "error": "Industry classification scrapers not available",
+            "_scraper_metadata": {
+                "scraper_name": "industry_classification",
+                "description": "AI-powered business categorization",
+                "execution_time": 0,
+                "quality": "unavailable",
+                "timestamp": datetime.now().isoformat(),
+                "source_type": "ai_analysis",
+                "status": "scrapers_unavailable"
+            }
+        }
             
     except Exception as e:
         print(f"    ❌ Industry classification failed: {e}")
