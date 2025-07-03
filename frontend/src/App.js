@@ -11,7 +11,6 @@ import {
 
 // Import the API service
 import apiService from './services/api';
-import ConnectionStatus from './components/ConnectionStatus';
 import ExpandableDataView from './components/ExpandableDataView';
 
 // Simple Toast Notification System
@@ -231,7 +230,6 @@ const exportToCSV = (assessments) => {
 };
 
 // Login Component with Signup Flow
-// Login Component with Supabase Authentication
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -390,7 +388,7 @@ const LoginPage = ({ onLogin }) => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              RiskBee Email
+              Chargebee Email
             </label>
             <input
               type="email"
@@ -400,12 +398,12 @@ const LoginPage = ({ onLogin }) => {
                 setError(''); // Clear error when user types
               }}
               onBlur={handleEmailBlur}
-              placeholder="your.name@riskbee.com"
+              placeholder="your.name@chargebee.com"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              Must be a valid @riskbee.com email address
+              Must be a valid @chargebee.com email address
             </p>
           </div>
 
@@ -578,7 +576,7 @@ const Sidebar = ({ currentPage, onPageChange }) => {
   );
 };
 
-// Chargebee-Style Dashboard Component
+// CLEAN 3-TILE DASHBOARD COMPONENT
 const ChargebeeStyleDashboard = () => {
   // State management
   const [domainInput, setDomainInput] = useState('');
@@ -586,11 +584,9 @@ const ChargebeeStyleDashboard = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [currentAssessment, setCurrentAssessment] = useState(null);
   const [recentAssessments, setRecentAssessments] = useState([]);
-  const [expandedSections, setExpandedSections] = useState({});
   const [assessmentProgress, setAssessmentProgress] = useState(null);
   const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
-  const [showProcessingMessage, setShowProcessingMessage] = useState(false);
-  const [assessmentPollingError, setAssessmentPollingError] = useState(null);
+  const [currentAssessmentDomain, setCurrentAssessmentDomain] = useState('');
   
   // Enhanced state management
   const {
@@ -606,35 +602,19 @@ const ChargebeeStyleDashboard = () => {
   // Load data on component mount
   useEffect(() => {
     loadRecentAssessments();
+    
+    // Check for persisted assessment
+    const persistedId = localStorage.getItem('currentAssessmentId');
+    const persistedDomain = localStorage.getItem('currentAssessmentDomain');
+    
+    if (persistedId && persistedDomain) {
+      setCurrentAssessmentId(persistedId);
+      setCurrentAssessmentDomain(persistedDomain);
+      addInProgressAssessment(persistedId);
+      // Start polling for this assessment
+      pollAssessment(persistedId, persistedDomain);
+    }
   }, []);
-  
-  // Auto-poll in-progress assessments
-  useEffect(() => {
-    if (inProgressAssessments.size === 0) return;
-    
-    const pollInterval = setInterval(async () => {
-      for (const assessmentId of inProgressAssessments) {
-        try {
-          const progress = await apiService.getAssessmentProgress(assessmentId);
-          updateProgress(assessmentId, progress);
-          
-          if (progress.status === 'completed') {
-            const result = await apiService.getAssessmentResult(assessmentId);
-            removeInProgressAssessment(assessmentId);
-            addToast(`Assessment ${assessmentId} completed!`, 'success');
-            loadRecentAssessments();
-          } else if (progress.status === 'failed') {
-            removeInProgressAssessment(assessmentId);
-            addToast(`Assessment ${assessmentId} failed: ${progress.error || 'Unknown error'}`, 'error');
-          }
-        } catch (error) {
-          console.error(`Failed to poll assessment ${assessmentId}:`, error);
-        }
-      }
-    }, 10000); // Poll every 10 seconds
-    
-    return () => clearInterval(pollInterval);
-  }, [inProgressAssessments]);
 
   // Load recent assessments
   const loadRecentAssessments = async () => {
@@ -657,63 +637,64 @@ const ChargebeeStyleDashboard = () => {
           updateProgress(assessmentId, progress);
         }
       );
+      
       if (result && result.error) {
-        setAssessmentPollingError(result.error);
+        addToast(`Assessment failed: ${result.error}`, 'error');
         setAssessmentProgress(null);
-        setShowProcessingMessage(false);
         removeInProgressAssessment(assessmentId);
+        setCurrentAssessmentId(null);
+        setCurrentAssessmentDomain('');
         localStorage.removeItem('currentAssessmentId');
         localStorage.removeItem('currentAssessmentDomain');
-        setIsAssessing(false);
-        setCurrentAssessmentId(null);
         return;
       }
+      
+      // Success - show results
       setCurrentAssessment(result.result);
       setAssessmentProgress(null);
-      setShowProcessingMessage(false);
       removeInProgressAssessment(assessmentId);
+      setCurrentAssessmentId(null);
+      setCurrentAssessmentDomain('');
       addToast(`Assessment completed for ${domainName}`, 'success');
       localStorage.removeItem('currentAssessmentId');
       localStorage.removeItem('currentAssessmentDomain');
       setTimeout(loadRecentAssessments, 1000);
     } catch (error) {
       setAssessmentProgress(null);
-      setShowProcessingMessage(false);
       removeInProgressAssessment(assessmentId);
       addToast(`Assessment failed for ${domainName}: ${error.message}`, 'error');
+      setCurrentAssessmentId(null);
+      setCurrentAssessmentDomain('');
       localStorage.removeItem('currentAssessmentId');
       localStorage.removeItem('currentAssessmentDomain');
-      setAssessmentPollingError(error.message);
-      setIsAssessing(false);
-      setCurrentAssessmentId(null);
     } finally {
       setIsAssessing(false);
-      setCurrentAssessmentId(null);
     }
   };
 
-  // FIXED: Handle NEW assessment with progress tracking
+  // Handle NEW assessment with progress tracking
   const handleStartAssessment = async () => {
     if (!domainInput.trim()) return;
+    
     setIsAssessing(true);
-    setAssessmentProgress({ status: 'processing', progress: 0, current_step: 'Starting assessment...' });
+    setAssessmentProgress({ status: 'starting', progress: 0, current_step: 'Initializing assessment...' });
     setCurrentAssessment(null);
-    setShowProcessingMessage(false);
-    setAssessmentPollingError(null);
+    
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
-      // Start async assessment, get assessment_id
       const response = await apiService.createAssessment(domainInput);
       const assessmentId = response.assessment_id;
+      
       setCurrentAssessmentId(assessmentId);
+      setCurrentAssessmentDomain(domainInput);
       addInProgressAssessment(assessmentId);
       addToast(`Assessment started for ${domainInput}`, 'info');
-      setDomainInput('');
-      setShowProcessingMessage(true);
       
       // Save to localStorage for persistence
       localStorage.setItem('currentAssessmentId', assessmentId);
       localStorage.setItem('currentAssessmentDomain', domainInput);
+      
+      setDomainInput('');
       
       // Start polling for progress
       pollAssessment(assessmentId, domainInput);
@@ -721,50 +702,12 @@ const ChargebeeStyleDashboard = () => {
       setIsAssessing(false);
       setAssessmentProgress(null);
       setCurrentAssessmentId(null);
-      setShowProcessingMessage(false);
+      setCurrentAssessmentDomain('');
       addToast(`Failed to start assessment: ${error.message}`, 'error');
-      alert(`New assessment failed: ${error.message}`);
     }
   };
 
-  // New: Manual check status by assessment ID
-  const handleCheckStatus = async () => {
-    if (!currentAssessmentId) {
-      addToast('No assessment in progress.', 'warning');
-      return;
-    }
-    setIsAssessing(true);
-    try {
-      const progress = await apiService.getAssessmentProgress(currentAssessmentId);
-      setAssessmentProgress(progress);
-      updateProgress(currentAssessmentId, progress);
-      
-      if (progress.status === 'completed') {
-        const result = await apiService.getAssessmentResult(currentAssessmentId);
-        setCurrentAssessment(result.result);
-        setAssessmentProgress(null);
-        setCurrentAssessmentId(null);
-        removeInProgressAssessment(currentAssessmentId);
-        addToast('Assessment completed!', 'success');
-        localStorage.removeItem('currentAssessmentId');
-        localStorage.removeItem('currentAssessmentDomain');
-        setTimeout(loadRecentAssessments, 1000);
-      } else if (progress.status === 'failed') {
-        addToast(`Assessment failed: ${progress.error || 'Unknown error'}`, 'error');
-        setAssessmentProgress(null);
-        setCurrentAssessmentId(null);
-        removeInProgressAssessment(currentAssessmentId);
-        localStorage.removeItem('currentAssessmentId');
-        localStorage.removeItem('currentAssessmentDomain');
-      }
-    } catch (error) {
-      addToast(`Failed to check assessment status: ${error.message}`, 'error');
-    } finally {
-      setIsAssessing(false);
-    }
-  };
-
-  // FIXED: Handle FETCH existing assessment (Fetch existing from database)
+  // Handle FETCH existing assessment
   const handleFetchAssessment = async () => {
     if (!domainInput.trim()) return;
     
@@ -773,18 +716,19 @@ const ChargebeeStyleDashboard = () => {
       console.log(`🔍 Fetching existing assessment for: ${domainInput}`);
       const result = await apiService.getAssessment(domainInput);
       
-      // Extract the data from the response
       if (result && result.data) {
         setCurrentAssessment(result.data);
         setDomainInput('');
+        addToast(`Assessment retrieved for ${domainInput}`, 'success');
       } else if (result) {
         setCurrentAssessment(result);
         setDomainInput('');
+        addToast(`Assessment retrieved for ${domainInput}`, 'success');
       } else {
-        alert(`No existing assessment found for ${domainInput}. Try creating a new assessment instead.`);
+        addToast(`No existing assessment found for ${domainInput}`, 'warning');
       }
     } catch (error) {
-      alert(`Failed to fetch existing assessment: ${error.message}`);
+      addToast(`Failed to fetch assessment: ${error.message}`, 'error');
     } finally {
       setIsFetching(false);
     }
@@ -793,14 +737,7 @@ const ChargebeeStyleDashboard = () => {
   // Select assessment from recent list
   const selectAssessment = (assessment) => {
     setCurrentAssessment(assessment);
-  };
-
-  // Toggle section expansion
-  const toggleSection = (sectionId) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionId]: !prev[sectionId]
-    }));
+    setAssessmentProgress(null);
   };
 
   // Get risk color based on score
@@ -844,180 +781,14 @@ const ChargebeeStyleDashboard = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {/* CONNECTION STATUS */}
-        <div className="mb-6">
-          <ConnectionStatus />
-        </div>
-        {/* Assessment Processing Status - Only show when actually processing */}
-        {showProcessingMessage && currentAssessmentId && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 flex flex-col items-start">
-            <div className="font-semibold mb-1">Assessment is processing...</div>
-            <div className="text-xs mb-2 flex items-center space-x-2">
-              <span>Assessment ID: <span className="font-mono">{currentAssessmentId}</span></span>
-              <button
-                onClick={() => {
-                  copyToClipboard(currentAssessmentId);
-                  addToast('Assessment ID copied to clipboard!', 'success');
-                }}
-                className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                title="Copy Assessment ID"
-              >
-                <Copy className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="text-xs mb-2">You can check the status later from the dashboard or by clicking below.</div>
-            <div className="flex space-x-2">
-              <button
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-                onClick={handleCheckStatus}
-                disabled={isAssessing}
-              >
-                {isAssessing ? (
-                  <>
-                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                    Checking...
-                  </>
-                ) : (
-                  'Check Status'
-                )}
-              </button>
-              <button
-                className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
-                onClick={() => {
-                  setShowProcessingMessage(false);
-                  setCurrentAssessmentId(null);
-                  localStorage.removeItem('currentAssessmentId');
-                  localStorage.removeItem('currentAssessmentDomain');
-                  addToast('Assessment tracking cleared', 'info');
-                }}
-                title="Clear this notification"
-              >
-                Dismiss
-              </button>
-            </div>
-            <div className="text-xs mt-2 text-gray-500">Note: If the server was sleeping, this may take a few minutes to start. You can safely leave and check back later.</div>
-          </div>
-        )}
-
-        {/* Risk Assessment Infographic - Show when no assessment is in progress */}
-        {!showProcessingMessage && !currentAssessment && (
-          <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Comprehensive Risk Assessment</h2>
-              <p className="text-gray-600">Get detailed insights into business risk and compliance across 5 major categories</p>
-            </div>
+        
+        {/* CLEAN 3-TILE LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+          
+          {/* LEFT COLUMN - TILE 1 & 2 (Stacked Vertically) */}
+          <div className="lg:col-span-1 space-y-6">
             
-            {/* 5 Major Risk Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Shield className="w-5 h-5 text-red-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Security Risk</h3>
-                <p className="text-xs text-gray-600">SSL certificates, malware detection, security headers</p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Globe className="w-5 h-5 text-yellow-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Domain Risk</h3>
-                <p className="text-xs text-gray-600">WHOIS data, domain age, registrar reputation</p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Users className="w-5 h-5 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Business Risk</h3>
-                <p className="text-xs text-gray-600">Company verification, legal compliance, sanctions</p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Traffic Risk</h3>
-                <p className="text-xs text-gray-600">Website traffic, popularity metrics, engagement</p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <FileText className="w-5 h-5 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Content Risk</h3>
-                <p className="text-xs text-gray-600">Privacy policies, terms of service, legal compliance</p>
-              </div>
-            </div>
-            
-            {/* What You'll Get */}
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                What You'll Get
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Comprehensive risk score (1-10)</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Detailed category breakdown</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Risk level classification</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Actionable recommendations</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Exportable PDF reports</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">Historical assessment tracking</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {assessmentPollingError && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 flex flex-col items-start">
-            <div className="font-semibold mb-1">Assessment could not complete</div>
-            <div className="text-xs mb-2">{assessmentPollingError}</div>
-            <button
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-              onClick={() => {
-                setAssessmentPollingError(null);
-                setIsAssessing(true);
-                setShowProcessingMessage(true);
-                const persistedDomain = localStorage.getItem('currentAssessmentDomain') || 'Unknown Domain';
-                pollAssessment(currentAssessmentId, persistedDomain);
-              }}
-              disabled={isAssessing}
-            >
-              {isAssessing ? (
-                <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />Retrying...</>
-              ) : (
-                'Retry'
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Main Content Grid - 2 columns, left column with 2 rows */}
-        <div className="flex flex-row gap-6 items-stretch">
-          {/* Left Column: vertical stack */}
-          <div className="flex flex-col gap-6 w-full max-w-xs" style={{ flex: '0 0 35%' }}>
-            {/* Tile 1: Assessment Hub */}
-            {/* Assessment Hub (input, fetch, new assessment) */}
+            {/* TILE 1: ASSESSMENT HUB */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mr-4">
@@ -1025,18 +796,16 @@ const ChargebeeStyleDashboard = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Assessment Hub</h3>
-                  <p className="text-sm text-gray-500">Enter a business domain to assess risk and compliance</p>
+                  <p className="text-sm text-gray-500">Enter a business domain to assess risk</p>
                 </div>
               </div>
 
-              {/* ENHANCED Domain Input with Instructions */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Business Website Domain *
                   </label>
                   
-                  {/* Enhanced Input Field */}
                   <div className="relative">
                     <input
                       type="text"
@@ -1050,7 +819,6 @@ const ChargebeeStyleDashboard = () => {
                     </div>
                   </div>
                   
-                  {/* Format Guidelines */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
                     <div className="flex items-start space-x-2">
                       <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -1075,9 +843,7 @@ const ChargebeeStyleDashboard = () => {
                   </div>
                 </div>
 
-                {/* Enhanced Action Buttons */}
                 <div className="space-y-3">
-                  {/* FIRST BUTTON: Fetch Existing Assessment */}
                   <button
                     onClick={handleFetchAssessment}
                     disabled={!domainInput.trim() || isFetching}
@@ -1096,24 +862,16 @@ const ChargebeeStyleDashboard = () => {
                     )}
                   </button>
 
-                  {/* SECOND BUTTON: Create New Assessment */}
                   <button
                     onClick={handleStartAssessment}
                     disabled={!domainInput.trim() || isAssessing}
                     className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center font-medium"
                   >
                     {isAssessing ? (
-                      assessmentProgress ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                          {assessmentProgress.progress}% - {assessmentProgress.current_step}
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                          Starting Risk Analysis...
-                        </>
-                      )
+                      <>
+                        <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                        Starting Assessment...
+                      </>
                     ) : (
                       <>
                         <Search className="w-5 h-5 mr-2" />
@@ -1123,7 +881,6 @@ const ChargebeeStyleDashboard = () => {
                   </button>
                 </div>
 
-                {/* Input Validation Hint */}
                 {domainInput && !domainInput.includes('.') && (
                   <div className="flex items-center space-x-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
                     <AlertTriangle className="w-4 h-4" />
@@ -1133,33 +890,30 @@ const ChargebeeStyleDashboard = () => {
               </div>
             </div>
 
-            {/* Recent Assessments */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Assessments</h3>
-                  <button 
-                    onClick={() => {
-                      loadRecentAssessments();
-                      addToast('Refreshing assessments...', 'info');
-                    }}
-                    className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
-                    title="Refresh assessments"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
+            {/* TILE 2: RECENT ASSESSMENTS */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Recent Assessments</h3>
+                <button 
+                  onClick={() => {
+                    loadRecentAssessments();
+                    addToast('Refreshing assessments...', 'info');
+                  }}
+                  className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
+                  title="Refresh assessments"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
               
               {recentAssessments.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
+                <div className="text-center text-gray-500 py-8">
                   <Shield className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No assessments yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100">
+                <div className="space-y-3 max-h-96 overflow-y-auto">
                   {recentAssessments.map((assessment, index) => {
-                    const status = getAssessmentStatus(assessment);
                     const isInProgress = inProgressAssessments.has(assessment.id);
                     const progress = globalProgress[assessment.id];
                     
@@ -1167,8 +921,8 @@ const ChargebeeStyleDashboard = () => {
                       <div 
                         key={assessment.id || index}
                         onClick={() => selectAssessment(assessment)}
-                        className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                          isInProgress ? 'bg-blue-50 border-l-4 border-blue-400' : ''
+                        className={`p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
+                          isInProgress ? 'bg-blue-50 border-blue-200' : ''
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -1220,11 +974,203 @@ const ChargebeeStyleDashboard = () => {
               )}
             </div>
           </div>
-          {/* Right Tile: 65% width */}
-          <div className="flex-1 min-w-0" style={{ flex: '0 0 65%' }}>
-            <div className="max-w-2xl mx-auto">
-              {/* Infographic, results, or waiting message (was in right column) */}
-              {/* ...copy from previous right column... */}
+
+          {/* RIGHT COLUMN - TILE 3: COMPREHENSIVE RISK ASSESSMENT */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full">
+              
+              {/* SHOW PROGRESS WHEN ASSESSMENT IS RUNNING */}
+              {assessmentProgress && (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Assessment in Progress</h2>
+                  <p className="text-gray-600 mb-6">
+                    Analyzing {currentAssessmentDomain} across multiple data sources
+                  </p>
+                  
+                  <div className="max-w-md mx-auto mb-6">
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div 
+                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${assessmentProgress.progress || 0}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500 mt-2">
+                      <span>{assessmentProgress.progress || 0}%</span>
+                      <span>Complete</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+                    <p className="text-sm text-blue-800 font-medium">
+                      {assessmentProgress.current_step || 'Initializing...'}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      This may take 60-90 seconds for comprehensive analysis
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* SHOW RESULTS WHEN ASSESSMENT IS COMPLETE */}
+              {currentAssessment && !assessmentProgress && (
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        Risk Assessment Results
+                      </h2>
+                      <p className="text-gray-600">
+                        {safeGetCompanyName(currentAssessment)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getRiskBadgeColor(currentAssessment.risk_assessment_data?.risk_level)}`}>
+                        {currentAssessment.risk_assessment_data?.risk_level || 'Medium'} Risk
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Score: {currentAssessment.risk_assessment_data?.weighted_total_score?.toFixed(1) || 'N/A'}/10
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Risk Categories Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    {Object.entries(currentAssessment.risk_assessment_data?.risk_categories || {}).map(([categoryKey, categoryData]) => (
+                      <div key={categoryKey} className={`p-4 rounded-lg border-2 ${getRiskBorderColor(categoryData.average_score)} ${getRiskBgColor(categoryData.average_score)}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-gray-900">
+                            {formatRiskCategory(categoryKey)}
+                          </h3>
+                          <span className={`text-lg font-bold ${getRiskColor(categoryData.average_score)}`}>
+                            {categoryData.average_score?.toFixed(1) || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              categoryData.average_score >= 7 ? 'bg-green-500' : 
+                              categoryData.average_score >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${((categoryData.average_score || 0) / 10) * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2">
+                          {categoryData.checks?.length || 0} checks • Weight: {Math.round(categoryData.weight * 100)}%
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center space-x-4 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => generatePDFReport(currentAssessment)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export PDF</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        copyToClipboard(currentAssessment.id);
+                        addToast('Assessment ID copied to clipboard!', 'success');
+                      }}
+                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span>Copy ID</span>
+                    </button>
+                    <button
+                      onClick={() => setCurrentAssessment(null)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back to Hub</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SHOW INFOGRAPHIC WHEN NO ASSESSMENT IS ACTIVE */}
+              {!assessmentProgress && !currentAssessment && (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Shield className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Comprehensive Risk Assessment</h2>
+                  <p className="text-gray-600 mb-8">Get detailed insights into business risk and compliance across 5 major categories</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Shield className="w-6 h-6 text-red-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Security Risk</h3>
+                      <p className="text-sm text-gray-600">SSL certificates, malware detection, security headers</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Globe className="w-6 h-6 text-yellow-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Domain Risk</h3>
+                      <p className="text-sm text-gray-600">WHOIS data, domain age, registrar reputation</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Users className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Business Risk</h3>
+                      <p className="text-sm text-gray-600">Company verification, legal compliance, sanctions</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <TrendingUp className="w-6 h-6 text-green-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Traffic Risk</h3>
+                      <p className="text-sm text-gray-600">Website traffic, popularity metrics, engagement</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FileText className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Content Risk</h3>
+                      <p className="text-sm text-gray-600">Privacy policies, terms of service, legal compliance</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-2xl mx-auto">
+                    <h3 className="font-semibold text-blue-900 mb-3 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-blue-600 mr-2" />
+                      What You'll Get
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-start space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-blue-800">Comprehensive risk score (1-10)</span>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-blue-800">Detailed category breakdown</span>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-blue-800">Risk level classification</span>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-blue-800">Actionable recommendations</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1234,7 +1180,7 @@ const ChargebeeStyleDashboard = () => {
 };
 
 // Assessment List View Component - FIXED TABLE
-const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessment, onBulkDelete, addToast, setCurrentAssessmentId, setShowProcessingMessage, addInProgressAssessment }) => {
+const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessment, onBulkDelete, addToast }) => {
   const [selectedAssessments, setSelectedAssessments] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
@@ -1446,38 +1392,6 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    {getAssessmentStatus(assessment) === 'processing' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Set this as the current assessment to check status
-                          setCurrentAssessmentId(assessment.id);
-                          setShowProcessingMessage(true);
-                          addInProgressAssessment(assessment.id);
-                          addToast(`Checking status for ${safeGetCompanyName(assessment)}`, 'info');
-                        }}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded"
-                        title="Check Status"
-                      >
-                        <Activity className="w-4 h-4" />
-                      </button>
-                    )}
-                    {getAssessmentStatus(assessment) === 'failed' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const confirmed = window.confirm(`Retry assessment for ${safeGetCompanyName(assessment)}?`);
-                          if (confirmed) {
-                            // TODO: Implement retry logic when backend supports it
-                            addToast('Retry functionality coming soon!', 'info');
-                          }
-                        }}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded"
-                        title="Retry Assessment"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1510,11 +1424,7 @@ const RiskAssessmentsPage = () => {
   const [view, setView] = useState('list'); // 'list' or 'detail'
   const [expandedSections, setExpandedSections] = useState({});
 
-  // Add these hooks/utilities for AssessmentListView actions
   const { addToast } = useToast();
-  const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
-  const [showProcessingMessage, setShowProcessingMessage] = useState(false);
-  const { addInProgressAssessment } = useAssessmentState();
 
   useEffect(() => {
     loadAssessments();
@@ -1540,18 +1450,19 @@ const RiskAssessmentsPage = () => {
     try {
       await apiService.deleteAssessment(assessmentId);
       setAssessments(assessments.filter(a => a.id !== assessmentId));
+      addToast('Assessment deleted successfully', 'success');
     } catch (error) {
-      alert('Failed to delete assessment');
+      addToast('Failed to delete assessment', 'error');
     }
   };
 
   const handleBulkDelete = async (assessmentIds) => {
     try {
-      // Call delete for each assessment
       await Promise.all(assessmentIds.map(id => apiService.deleteAssessment(id)));
       setAssessments(assessments.filter(a => !assessmentIds.includes(a.id)));
+      addToast(`${assessmentIds.length} assessments deleted successfully`, 'success');
     } catch (error) {
-      alert('Failed to delete assessments');
+      addToast('Failed to delete assessments', 'error');
     }
   };
 
@@ -1566,19 +1477,6 @@ const RiskAssessmentsPage = () => {
       ...prev,
       [sectionId]: !prev[sectionId]
     }));
-  };
-
-  // Helper functions for risk visualization
-  const getRiskColor = (score) => {
-    if (score >= 7) return 'text-green-600';
-    if (score >= 4) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getRiskBgColor = (score) => {
-    if (score >= 7) return 'bg-green-50';
-    if (score >= 4) return 'bg-yellow-50';
-    return 'bg-red-50';
   };
 
   const formatRiskCategory = (key) => {
@@ -1604,9 +1502,6 @@ const RiskAssessmentsPage = () => {
             onDeleteAssessment={handleDeleteAssessment}
             onBulkDelete={handleBulkDelete}
             addToast={addToast}
-            setCurrentAssessmentId={setCurrentAssessmentId}
-            setShowProcessingMessage={setShowProcessingMessage}
-            addInProgressAssessment={addInProgressAssessment}
           />
         </div>
       ) : (
@@ -1615,11 +1510,11 @@ const RiskAssessmentsPage = () => {
             onClick={handleBackToList}
             className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
           >
-            <ChevronRight className="w-4 h-4 mr-1 transform rotate-180" />
+            <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Assessments
           </button>
           
-          {/* Detailed Assessment View with Expandable Categories */}
+          {/* Detailed Assessment View */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
@@ -1630,7 +1525,7 @@ const RiskAssessmentsPage = () => {
               </p>
             </div>
             
-            {selectedAssessment ? (
+            {selectedAssessment && (
               <div className="p-6">
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -1654,7 +1549,7 @@ const RiskAssessmentsPage = () => {
                   </div>
                 </div>
                 
-                {/* Risk Categories - Expandable */}
+                {/* Risk Categories */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Categories Analysis</h3>
                   <div className="space-y-4">
@@ -1665,33 +1560,24 @@ const RiskAssessmentsPage = () => {
                           className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getRiskBgColor(categoryData.average_score)}`}>
-                              {categoryKey === 'reputation_risk' && <TrendingUp className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                              {categoryKey === 'financial_risk' && <DollarSign className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                              {categoryKey === 'technology_risk' && <Lock className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                              {categoryKey === 'business_risk' && <Building className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                              {categoryKey === 'legal_compliance_risk' && <Scale className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            <div className="font-semibold text-gray-900">
+                              {formatRiskCategory(categoryKey)}
                             </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900">
-                                {formatRiskCategory(categoryKey)}
-                              </h4>
-                              <p className="text-sm text-gray-500">
-                                Score: {categoryData.average_score?.toFixed(1) || 'N/A'} • Weight: {Math.round(categoryData.weight * 100)}%
-                              </p>
-                            </div>
+                            <span className="text-sm text-gray-500">
+                              Score: {categoryData.average_score?.toFixed(1) || 'N/A'}
+                            </span>
                           </div>
                           <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections[categoryKey] ? 'rotate-180' : ''}`} />
                         </button>
                         
                         {expandedSections[categoryKey] && (
-                          <div className="p-4 pt-0">
+                          <div className="p-4 pt-0 border-t border-gray-100">
                             <div className="space-y-3">
                               {categoryData.checks?.map((check, index) => (
                                 <div key={index} className="bg-gray-50 rounded-lg p-3">
                                   <div className="flex items-center justify-between mb-2">
                                     <h5 className="font-medium text-gray-900">{check.check_name}</h5>
-                                    <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskBgColor(check.score)} ${getRiskColor(check.score)}`}>
+                                    <span className="px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800">
                                       {check.score}/10
                                     </span>
                                   </div>
@@ -1727,181 +1613,21 @@ const RiskAssessmentsPage = () => {
                           <h3 className="text-lg font-semibold text-gray-900">Raw Scraper Data</h3>
                           <p className="text-sm text-gray-500">
                             {selectedAssessment.scraped_data.collection_summary?.successful_scrapers || 0} successful • 
-                            {selectedAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed • 
-                            {selectedAssessment.scraped_data.collection_summary?.success_rate || 0}% success rate
+                            {selectedAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium">
-                          {Object.keys(selectedAssessment.scraped_data).filter(key => !key.startsWith('collection_') && !['domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode'].includes(key)).length} sources
-                        </div>
-                        {expandedSections['raw_scraper_data'] ? 
-                          <ChevronUp className="w-5 h-5 text-gray-400" /> : 
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        }
-                      </div>
+                      <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections['raw_scraper_data'] ? 'rotate-180' : ''}`} />
                     </button>
 
                     {expandedSections['raw_scraper_data'] && (
                       <div className="px-6 pb-6 border-t border-gray-100">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                          {Object.entries(selectedAssessment.scraped_data).map(([scraperKey, scraperData]) => {
-                            // Skip metadata fields
-                            if (['collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode'].includes(scraperKey)) {
-                              return null;
-                            }
-
-                            const isError = scraperData?.error;
-                            const metadata = scraperData?._scraper_metadata;
-                            const hasSourceUrl = metadata?.source_url;
-
-                            return (
-                              <div key={scraperKey} className={`border rounded-lg p-4 ${isError ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <div className={`w-3 h-3 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                                    <h4 className="font-semibold text-gray-900 capitalize">
-                                      {scraperKey.replace(/_/g, ' ')}
-                                    </h4>
-                                  </div>
-                                  {hasSourceUrl && (
-                                    <button
-                                      onClick={() => window.open(metadata.source_url, '_blank')}
-                                      className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm"
-                                      title={`View source: ${metadata.source_url}`}
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                      <span>Source</span>
-                                    </button>
-                                  )}
-                                </div>
-
-                                {metadata && (
-                                  <div className="text-xs text-gray-600 mb-2">
-                                    <div className="flex items-center justify-between">
-                                      <span>{metadata.description}</span>
-                                      <span>{metadata.execution_time}s</span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-1">
-                                      <span className={`px-2 py-0.5 rounded text-xs ${
-                                        metadata.quality === 'high' ? 'bg-green-100 text-green-700' :
-                                        metadata.quality === 'low' ? 'bg-yellow-100 text-yellow-700' :
-                                        'bg-red-100 text-red-700'
-                                      }`}>
-                                        {metadata.quality} quality
-                                      </span>
-                                      <span className="text-gray-500">
-                                        {new Date(metadata.timestamp).toLocaleTimeString()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {isError ? (
-                                  <div className="text-sm text-red-700">
-                                    <p className="font-medium">Error:</p>
-                                    <p className="mt-1">{scraperData.error}</p>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <button
-                                      onClick={() => toggleSection(`scraper_${scraperKey}`)}
-                                      className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-800"
-                                    >
-                                      {expandedSections[`scraper_${scraperKey}`] ? 
-                                        <ChevronUp className="w-4 h-4" /> : 
-                                        <ChevronDown className="w-4 h-4" />
-                                      }
-                                      <span>View Raw Data</span>
-                                    </button>
-
-                                    {expandedSections[`scraper_${scraperKey}`] && (
-                                      <div className="mt-2 p-3 bg-white rounded border">
-                                        <ExpandableDataView data={scraperData} label={scraperKey} />
-                                      </div>
-                                    )}
-
-                                    {/* Show key data points for quick reference */}
-                                    <div className="text-sm text-gray-700">
-                                      {scraperKey === 'https_check' && scraperData.has_https !== undefined && (
-                                        <p><span className="font-medium">HTTPS:</span> {scraperData.has_https ? '✅ Enabled' : '❌ Disabled'}</p>
-                                      )}
-                                      {scraperKey === 'whois_data' && scraperData.registrar && (
-                                        <p><span className="font-medium">Registrar:</span> {scraperData.registrar}</p>
-                                      )}
-                                      {scraperKey === 'google_safe_browsing' && scraperData['Current Status'] && (
-                                        <p><span className="font-medium">Status:</span> {scraperData['Current Status']}</p>
-                                      )}
-                                      {scraperKey === 'ssl_org_report' && scraperData.report_summary?.ssl_grade && (
-                                        <p><span className="font-medium">SSL Grade:</span> {scraperData.report_summary.ssl_grade}</p>
-                                      )}
-                                      {scraperKey === 'ofac_sanctions' && scraperData.sanctions_screening && (
-                                        <p><span className="font-medium">OFAC Status:</span> {scraperData.sanctions_screening.status}</p>
-                                      )}
-                                      {scraperKey === 'tranco_ranking' && scraperData['Tranco Rank'] && (
-                                        <p><span className="font-medium">Rank:</span> {scraperData['Tranco Rank']}</p>
-                                      )}
-                                      {scraperKey === 'industry_classification' && scraperData.industry_category && (
-                                        <p><span className="font-medium">Industry:</span> {scraperData.industry_category}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Collection Summary */}
-                        {selectedAssessment.scraped_data.collection_summary && (
-                          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h4 className="font-semibold text-blue-900 mb-2">Collection Summary</h4>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <p className="text-blue-700 font-medium">Total Scrapers</p>
-                                <p className="text-blue-900">{selectedAssessment.scraped_data.collection_summary.total_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-green-700 font-medium">Successful</p>
-                                <p className="text-green-900">{selectedAssessment.scraped_data.collection_summary.successful_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-red-700 font-medium">Failed</p>
-                                <p className="text-red-900">{selectedAssessment.scraped_data.collection_summary.failed_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-blue-700 font-medium">Success Rate</p>
-                                <p className="text-blue-900">{selectedAssessment.scraped_data.collection_summary.success_rate}%</p>
-                              </div>
-                            </div>
-                            <div className="mt-3 text-sm">
-                              <p className="text-blue-700">
-                                <span className="font-medium">Quality Level:</span> 
-                                <span className={`ml-1 px-2 py-0.5 rounded text-xs ${
-                                  selectedAssessment.scraped_data.collection_summary.quality_level === 'EXCELLENT' ? 'bg-green-100 text-green-700' :
-                                  selectedAssessment.scraped_data.collection_summary.quality_level === 'GOOD' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {selectedAssessment.scraped_data.collection_summary.quality_level}
-                                </span>
-                              </p>
-                              <p className="text-blue-700 mt-1">
-                                <span className="font-medium">Execution Mode:</span> {selectedAssessment.scraped_data.execution_mode || 'sequential_complete'}
-                              </p>
-                              <p className="text-blue-700 mt-1">
-                                <span className="font-medium">Collection Time:</span> {new Date(selectedAssessment.scraped_data.collection_summary.collection_time).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                        <ExpandableDataView data={selectedAssessment.scraped_data} label="Scraper Data" />
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="text-gray-600 p-6">No assessment selected.</p>
             )}
           </div>
         </div>
@@ -1920,7 +1646,7 @@ const AnalyticsPage = () => {
     loading: true
   });
   const [assessments, setAssessments] = useState([]);
-  const [timeframe, setTimeframe] = useState('30'); // days
+  const [timeframe, setTimeframe] = useState('30');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1930,13 +1656,8 @@ const AnalyticsPage = () => {
   const loadAnalyticsData = async () => {
     setLoading(true);
     try {
-      // Use the correct API service method
       const riskStats = await apiService.getRiskDistribution();
-      
-      // Get all assessments for additional analytics
       const allAssessments = await apiService.fetchAssessments();
-      
-      // Process assessments data
       const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
       
       setAnalytics({
@@ -1948,25 +1669,7 @@ const AnalyticsPage = () => {
       setAssessments(allAssessments);
     } catch (error) {
       console.error('Failed to load analytics:', error);
-      
-      // Fallback to processing assessments only
-      try {
-        const allAssessments = await apiService.fetchAssessments();
-        const processedData = processAssessmentsData(allAssessments, parseInt(timeframe));
-        
-        setAnalytics({
-          totalAssessments: allAssessments.length,
-          riskDistribution: processedData.riskDistribution || { Low: 0, Medium: 0, High: 0, Unknown: 0 },
-          averageScore: processedData.averageScore || 0,
-          ...processedData,
-          loading: false
-        });
-        
-        setAssessments(allAssessments);
-      } catch (fallbackError) {
-        console.error('Fallback analytics load failed:', fallbackError);
-        setAnalytics(prev => ({ ...prev, loading: false }));
-      }
+      setAnalytics(prev => ({ ...prev, loading: false }));
     } finally {
       setLoading(false);
     }
@@ -1980,54 +1683,27 @@ const AnalyticsPage = () => {
       new Date(assessment.created_at) >= cutoffDate
     );
     
-    // Calculate risk distribution
     const riskDistribution = { Low: 0, Medium: 0, High: 0, Unknown: 0 };
     let totalScore = 0;
     let scoreCount = 0;
     
-    // Calculate daily assessments for chart
-    const dailyData = {};
-    const scoreDistribution = { '0-3': 0, '3-5': 0, '5-7': 0, '7-10': 0 };
-    
     recentAssessments.forEach(assessment => {
-      const date = new Date(assessment.created_at).toISOString().split('T')[0];
       const score = assessment.risk_assessment_data?.weighted_total_score || 0;
       const riskLevel = assessment.risk_assessment_data?.risk_level || 'Unknown';
       
-      // Risk distribution
       riskDistribution[riskLevel] = (riskDistribution[riskLevel] || 0) + 1;
       
-      // Average score calculation
       if (score > 0) {
         totalScore += score;
         scoreCount++;
       }
-      
-      // Daily data
-      if (!dailyData[date]) {
-        dailyData[date] = { date, total: 0, Low: 0, Medium: 0, High: 0, Unknown: 0 };
-      }
-      dailyData[date].total++;
-      dailyData[date][riskLevel]++;
-      
-      // Score distribution
-      if (score < 3) scoreDistribution['0-3']++;
-      else if (score < 5) scoreDistribution['3-5']++;
-      else if (score < 7) scoreDistribution['5-7']++;
-      else scoreDistribution['7-10']++;
     });
-    
-    const dailyAssessments = Object.values(dailyData).sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
-    );
     
     return {
       recentAssessments: recentAssessments.length,
       riskDistribution,
       averageScore: scoreCount > 0 ? totalScore / scoreCount : 0,
-      dailyAssessments,
-      scoreDistribution,
-      avgResponseTime: '45s',
+      avgResponseTime: '75s',
       completionRate: Math.round((recentAssessments.length / Math.max(assessments.length, 1)) * 100)
     };
   };
@@ -2073,7 +1749,6 @@ const AnalyticsPage = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Assessments</p>
               <p className="text-3xl font-bold text-gray-900">{analytics.totalAssessments || analytics.total_assessments || 0}</p>
-              <p className="text-sm text-gray-500">All time</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-blue-600" />
@@ -2086,7 +1761,6 @@ const AnalyticsPage = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Recent Assessments</p>
               <p className="text-3xl font-bold text-gray-900">{analytics.recentAssessments || 0}</p>
-              <p className="text-sm text-gray-500">Last {timeframe} days</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-green-600" />
@@ -2099,7 +1773,6 @@ const AnalyticsPage = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Average Score</p>
               <p className="text-3xl font-bold text-gray-900">{(analytics.averageScore || analytics.average_score || 0).toFixed(1)}</p>
-              <p className="text-sm text-gray-500">Out of 10</p>
             </div>
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
               <PieChart className="w-6 h-6 text-purple-600" />
@@ -2112,7 +1785,6 @@ const AnalyticsPage = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">High Risk</p>
               <p className="text-3xl font-bold text-red-600">{(analytics.riskDistribution || analytics.risk_distribution)?.High || 0}</p>
-              <p className="text-sm text-gray-500">Requires attention</p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <AlertTriangle className="w-6 h-6 text-red-600" />
@@ -2121,13 +1793,9 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
-      {/* Risk Distribution Chart */}
+      {/* Risk Distribution */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-          <PieChart className="w-5 h-5 mr-2 text-blue-600" />
-          Risk Distribution Overview
-        </h3>
-        
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Risk Distribution</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {Object.entries((analytics.riskDistribution || analytics.risk_distribution) || {}).map(([risk, count]) => (
             <div key={risk} className="text-center p-4 rounded-lg border border-gray-200">
@@ -2139,63 +1807,43 @@ const AnalyticsPage = () => {
                 {count}
               </div>
               <h4 className="font-semibold text-gray-900">{risk} Risk</h4>
-              <p className="text-sm text-gray-500">
-                {Math.round((count / Math.max((analytics.totalAssessments || analytics.total_assessments) || 1, 1)) * 100)}% of total
-              </p>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Export Options */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Download className="w-5 h-5 mr-2 text-blue-600" />
-          Export Analytics
-        </h3>
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => apiService.exportData('csv')}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Export Summary CSV</span>
-          </button>
-          <button
-            onClick={() => apiService.exportData('csv')}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Export Detailed CSV</span>
-          </button>
-          <span className="text-sm text-gray-500">
-            Analytics data for the last {timeframe} days
-          </span>
         </div>
       </div>
     </div>
   );
 };
 
-// Settings Page
+// Enhanced Settings Page - NOW WITH BACKEND STATUS
 const SettingsPage = () => {
   const [apiHealth, setApiHealth] = useState('checking');
+  const [backendInfo, setBackendInfo] = useState(null);
+  const [lastChecked, setLastChecked] = useState(null);
   const [settings, setSettings] = useState({
     notifications: true,
     autoRefresh: false,
     theme: 'light'
   });
 
+  const { addToast } = useToast();
+
   useEffect(() => {
     checkApiHealth();
   }, []);
 
   const checkApiHealth = async () => {
+    setApiHealth('checking');
     try {
-      await apiService.checkBackendHealth();
+      const health = await apiService.checkBackendHealth();
+      setBackendInfo(health);
       setApiHealth('connected');
+      setLastChecked(new Date());
+      addToast('Backend health check completed', 'success');
     } catch (error) {
       setApiHealth('disconnected');
+      setLastChecked(new Date());
+      addToast('Backend health check failed', 'error');
     }
   };
 
@@ -2210,34 +1858,79 @@ const SettingsPage = () => {
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
       
-      {/* API Health Status */}
+      {/* BACKEND STATUS - MOVED HERE FROM DASHBOARD */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <Activity className="w-5 h-5 mr-2 text-blue-600" />
-          API Health Status
+          Backend System Status
         </h3>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${
-              apiHealth === 'connected' ? 'bg-green-500' :
-              apiHealth === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
-            }`}></div>
-            <span className="text-sm font-medium text-gray-900">
-              Backend API: {apiHealth === 'connected' ? 'Connected' : 
-                          apiHealth === 'disconnected' ? 'Disconnected' : 'Checking...'}
-            </span>
+        
+        <div className="space-y-4">
+          {/* Main Status */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <div className={`w-4 h-4 rounded-full ${
+                apiHealth === 'connected' ? 'bg-green-500' :
+                apiHealth === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
+              }`}></div>
+              <div>
+                <span className="text-sm font-medium text-gray-900">
+                  API Status: {apiHealth === 'connected' ? 'Connected' : 
+                             apiHealth === 'disconnected' ? 'Disconnected' : 'Checking...'}
+                </span>
+                <p className="text-xs text-gray-500">
+                  Endpoint: {apiService.baseURL}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={checkApiHealth}
+              disabled={apiHealth === 'checking'}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${apiHealth === 'checking' ? 'animate-spin' : ''}`} />
+              <span>Check Status</span>
+            </button>
           </div>
-          <button
-            onClick={checkApiHealth}
-            className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Check Status</span>
-          </button>
-        </div>
-        <div className="mt-4 text-sm text-gray-500">
-          <p>API Endpoint: {apiService.baseURL}</p>
-          <p>Last checked: {new Date().toLocaleTimeString()}</p>
+
+          {/* Last Checked */}
+          {lastChecked && (
+            <div className="text-sm text-gray-500">
+              Last checked: {lastChecked.toLocaleString()}
+            </div>
+          )}
+
+          {/* Backend Info */}
+          {backendInfo && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2">System Information</h4>
+                <div className="space-y-1 text-sm">
+                  <div>Version: {backendInfo.version || 'N/A'}</div>
+                  <div>Status: {backendInfo.status || 'N/A'}</div>
+                  <div>Environment: {backendInfo.environment || 'N/A'}</div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2">Services</h4>
+                <div className="space-y-1 text-sm">
+                  {backendInfo.services && Object.entries(backendInfo.services).map(([service, status]) => (
+                    <div key={service} className="flex items-center justify-between">
+                      <span className="capitalize">{service.replace('_', ' ')}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${
+                        status.toString().includes('✅') || status === 'connected' ? 'bg-green-100 text-green-800' :
+                        status.toString().includes('❌') || status === 'disconnected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2285,22 +1978,6 @@ const SettingsPage = () => {
               />
             </button>
           </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-900">Theme</label>
-              <p className="text-sm text-gray-500">Choose your preferred theme</p>
-            </div>
-            <select
-              value={settings.theme}
-              onChange={(e) => handleSettingChange('theme', e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -2317,7 +1994,7 @@ const SettingsPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Assessment Type</label>
-            <p className="mt-1 text-sm text-gray-900">Unified (AI + Scrapers)</p>
+            <p className="mt-1 text-sm text-gray-900">Enhanced (AI + Scrapers)</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Database</label>
@@ -2382,35 +2059,9 @@ const SettingsPage = () => {
           </button>
         </div>
       </div>
-
-      {/* Support & Help */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Mail className="w-5 h-5 mr-2 text-blue-600" />
-          Support & Help
-        </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-gray-900">Need Help?</div>
-              <div className="text-sm text-gray-500">Contact the development team for support</div>
-            </div>
-            <button
-              onClick={() => window.open('mailto:bidya.bibhu@chargebee.com?subject=KYB System Support', '_blank')}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              <span>Contact Support</span>
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
-
-// Main App Component
-// Update the Main App Component in App.js to handle auth state
 
 // Main App Component
 const App = () => {
@@ -2418,24 +2069,20 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
   const checkAuthStatus = async () => {
     try {
-      // Check if we have a stored token
       const token = localStorage.getItem('auth_token');
       const storedUser = localStorage.getItem('user_data');
       
       if (token && storedUser) {
-        // Verify token is still valid
         const currentUser = await apiService.getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
         } else {
-          // Token expired or invalid
           apiService.clearAuthTokens();
         }
       }
@@ -2449,11 +2096,9 @@ const App = () => {
 
   const handleLogin = async (email, password) => {
     try {
-      // Call login API
       const response = await apiService.login(email, password);
       
       if (response.success) {
-        // Successful login
         setUser(response.user);
         return { success: true };
       } else {
@@ -2490,7 +2135,6 @@ const App = () => {
     }
   };
 
-  // Show loading screen while checking auth
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
