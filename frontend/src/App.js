@@ -82,7 +82,7 @@ const exportToCSV = (assessments) => {
         assessment.risk_assessment_data?.risk_level || 'N/A',
         assessment.risk_assessment_data?.weighted_total_score?.toFixed(1) || 'N/A',
         new Date(assessment.created_at).toLocaleDateString(),
-        assessment.assessment_type === 'enhanced_with_scrapers' ? 'Enhanced' : 'Standard'
+        'Assessment'
       ]);
       
       const csvContent = [headers, ...csvData]
@@ -487,56 +487,17 @@ const ChargebeeStyleDashboard = () => {
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
       
-      // Start assessment with progress tracking (enhanced first, fallback to standard)
-      let startResult;
-      let assessmentId;
+      // Start single assessment (no more enhanced/standard complexity)
+      const assessmentResult = await apiService.createAssessment(domainInput);
       
-      try {
-        startResult = await apiService.createAssessmentWithProgress(domainInput, 'enhanced');
-        assessmentId = startResult.assessment_id;
-      } catch (enhancedError) {
-        console.warn('Enhanced assessment failed, falling back to standard:', enhancedError);
-        
-        // Fall back to the original direct API endpoint for standard assessment
-        try {
-          const fallbackResult = await apiService.createAssessment(domainInput);
-          // For backward compatibility, show the result immediately
-          setCurrentAssessment(fallbackResult);
-          setDomainInput('');
-          setTimeout(loadRecentAssessments, 2000);
-          return;
-        } catch (fallbackError) {
-          throw new Error(`Both enhanced and standard assessments failed: ${fallbackError.message}`);
-        }
-      }
-      
-      setCurrentAssessmentId(assessmentId);
+      // Show the result immediately
+      setCurrentAssessment(assessmentResult);
       setDomainInput('');
       
-      // Start polling for progress and final result
-      try {
-        const finalResult = await apiService.pollAssessmentUntilComplete(
-          assessmentId,
-          // Progress callback
-          (progress) => {
-            setAssessmentProgress(progress);
-            console.log(`Progress: ${progress.progress}% - ${progress.current_step}`);
-          }
-        );
-        
-        // Assessment completed! Show the final result
-        setCurrentAssessment(finalResult.result);
-        setAssessmentProgress(null);
-        console.log('✅ Assessment completed successfully!');
-        
-        // Refresh recent assessments list
-        setTimeout(loadRecentAssessments, 1000);
-        
-      } catch (pollError) {
-        console.error('Assessment polling failed:', pollError);
-        alert(`Assessment failed: ${pollError.message}`);
-        setAssessmentProgress(null);
-      }
+      console.log('✅ Assessment completed successfully!');
+      
+      // Refresh recent assessments list
+      setTimeout(loadRecentAssessments, 1000);
       
     } catch (error) {
       console.error('Failed to start assessment:', error);
@@ -849,7 +810,7 @@ const ChargebeeStyleDashboard = () => {
                       <span className="text-sm font-semibold text-blue-900">Assessment Details</span>
                     </div>
                     <div className="text-xs text-blue-700 space-y-1">
-                      <div>Type: {assessmentProgress.assessment_type || 'Enhanced'}</div>
+                      <div>Type: Assessment</div>
                       <div>Started: {new Date(assessmentProgress.started_at).toLocaleTimeString()}</div>
                       <div>Status: {assessmentProgress.status || 'Running'}</div>
                     </div>
@@ -1416,9 +1377,7 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                 >
                   <div className="text-sm font-medium text-gray-900">{safeGetCompanyName(assessment)}</div>
                   <div className="text-sm text-gray-500">
-                    {assessment.assessment_type === 'enhanced_with_scrapers' ? 'Enhanced' : 
-                     assessment.assessment_type === 'unified_ai_plus_scrapers' ? 'Unified' : 
-                     assessment.assessment_type === 'amazing' ? 'Amazing' : 'Standard'} Assessment
+                    Assessment
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

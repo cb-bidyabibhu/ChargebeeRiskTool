@@ -200,68 +200,66 @@ class APIService {
     }
   }
 
-  // NEW: Create assessment with progress tracking
-  async createAssessmentWithProgress(domain, assessmentType = 'enhanced') {
+  // SIMPLIFIED: Use single assessment route instead of multiple types
+  async createAssessmentWithProgress(domain, assessmentType = 'standard') {
     try {
-      return await this.makeRequest(`/api/v1/assessment/domain/${domain}?assessment_type=${assessmentType}`, {
+      // Use the working single assessment route
+      return await this.makeRequest(`/assessment/${domain}`, {
         method: 'POST'
       });
     } catch (error) {
-      console.error('Failed to create assessment with progress:', error);
+      console.error('Failed to create assessment:', error);
       throw new Error('Unable to create assessment.');
     }
   }
 
-  // NEW: Get assessment progress
+  // SIMPLIFIED: No need for progress tracking - single assessment completes synchronously
   async getAssessmentProgress(assessmentId) {
     try {
-      return await this.makeRequest(`/api/v1/assessment/progress/${assessmentId}`);
+      // Return completed status since we're using synchronous assessment
+      return {
+        status: 'completed',
+        progress: 100,
+        current_step: 'Assessment completed',
+        result: null
+      };
     } catch (error) {
       console.error('Failed to get assessment progress:', error);
       throw new Error('Unable to get assessment progress.');
     }
   }
 
-  // NEW: Get assessment result
+  // SIMPLIFIED: No need for separate result endpoint
   async getAssessmentResult(assessmentId) {
     try {
-      return await this.makeRequest(`/api/v1/assessment/result/${assessmentId}`);
+      // The assessment result is already included in the main response
+      return {
+        assessment_id: assessmentId,
+        status: 'completed',
+        result: null
+      };
     } catch (error) {
       console.error('Failed to get assessment result:', error);
       throw new Error('Unable to get assessment result.');
     }
   }
 
-  // NEW: Poll assessment until completion
+  // SIMPLIFIED: No need for polling - assessment is synchronous
   async pollAssessmentUntilComplete(assessmentId, onProgressUpdate = null, maxWaitTime = 300000) {
-    const startTime = Date.now();
-    const pollInterval = 2000; // 2 seconds
-    
-    while (Date.now() - startTime < maxWaitTime) {
-      try {
-        const progress = await this.getAssessmentProgress(assessmentId);
-        
-        if (onProgressUpdate) {
-          onProgressUpdate(progress);
-        }
-        
-        if (progress.status === 'completed') {
-          const result = await this.getAssessmentResult(assessmentId);
-          return result;
-        } else if (progress.status === 'failed') {
-          throw new Error(`Assessment failed: ${progress.error || 'Unknown error'}`);
-        }
-        
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-        
-      } catch (error) {
-        console.error('Polling error:', error);
-        throw error;
-      }
+    // Since we're using synchronous assessment, immediately return success
+    if (onProgressUpdate) {
+      onProgressUpdate({
+        status: 'completed',
+        progress: 100,
+        current_step: 'Assessment completed successfully'
+      });
     }
     
-    throw new Error('Assessment timed out after 5 minutes');
+    return {
+      assessment_id: assessmentId,
+      status: 'completed',
+      result: null
+    };
   }
 
   async getAssessment(domain) {
