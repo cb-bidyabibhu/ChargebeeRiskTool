@@ -2473,32 +2473,6 @@ const SettingsPage = () => {
 const App = () => {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('user_data');
-      
-      if (token && storedUser) {
-        const currentUser = await apiService.getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-        } else {
-          apiService.clearAuthTokens();
-        }
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      apiService.clearAuthTokens();
-    } finally {
-      setIsCheckingAuth(false);
-    }
-  };
 
   const handleLogin = async (email, password) => {
     try {
@@ -2540,17 +2514,6 @@ const App = () => {
         return <ChargebeeStyleDashboard />;
     }
   };
-
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return <LoginPage onLogin={handleLogin} />;

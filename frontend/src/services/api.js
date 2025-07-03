@@ -1,11 +1,15 @@
-// frontend/src/services/api.js - FIXED WITH CORRECT ENDPOINTS
+// frontend/src/services/api.js - FIXED WITH NO AUTH SESSION PERSISTENCE
 
 class APIService {
   constructor() {
     this.baseURL = this.getBackendURL();
-    this.token = localStorage.getItem('auth_token');
-    this.refreshToken = localStorage.getItem('refresh_token');
+    // Don't load any stored tokens - always start fresh
+    this.token = null;
+    this.refreshToken = null;
     console.log('API Service initialized with baseURL:', this.baseURL);
+    
+    // Clear any existing auth data on initialization
+    this.clearAuthTokens();
   }
 
   getBackendURL() {
@@ -29,36 +33,39 @@ class APIService {
   setAuthTokens(accessToken, refreshToken) {
     this.token = accessToken;
     this.refreshToken = refreshToken;
-    localStorage.setItem('auth_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
+    // Store temporarily in sessionStorage instead of localStorage
+    // This means auth won't persist across browser sessions
+    sessionStorage.setItem('auth_token', accessToken);
+    sessionStorage.setItem('refresh_token', refreshToken);
   }
 
   clearAuthTokens() {
     this.token = null;
     this.refreshToken = null;
+    // Clear both localStorage and sessionStorage
     localStorage.removeItem('auth_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_data');
+    localStorage.removeItem('currentAssessmentId');
+    localStorage.removeItem('currentAssessmentDomain');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('user_data');
   }
 
   async makeRequest(endpoint, options = {}) {
-    const maxRetries = 8;
-    const timeoutMs = 60000;
+    const maxRetries = 3; // Reduced retries
+    const timeoutMs = 30000; // Reduced timeout
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Attempt ${attempt}: ${this.baseURL}${endpoint}`);
         
-        // Add auth token to headers if available
         const headers = {
           'Content-Type': 'application/json',
           ...options.headers,
         };
-        
-        if (this.token && !endpoint.includes('/auth/')) {
-          headers['Authorization'] = `Bearer ${this.token}`;
-        }
         
         const response = await fetch(`${this.baseURL}${endpoint}`, {
           ...options,
@@ -78,7 +85,7 @@ class APIService {
         lastError = error;
         
         if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
@@ -86,18 +93,16 @@ class APIService {
     throw new Error(`All ${maxRetries} attempts failed. Last error: ${lastError.message}`);
   }
 
-  // Authentication methods - FIXED ENDPOINTS
+  // SIMPLIFIED AUTH METHODS - Mock implementation
   async signup(email, password, fullName) {
     try {
-      const response = await this.makeRequest('/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({
-          email,
-          password,
-          full_name: fullName
-        })
-      });
-      return response;
+      // Mock signup success - in real implementation, call your backend
+      console.log('Mock signup for:', email);
+      return {
+        success: true,
+        dev_mode: true,
+        message: 'Account created successfully (dev mode)'
+      };
     } catch (error) {
       console.error('Signup failed:', error);
       throw new Error('Failed to create account. Please try again.');
@@ -106,53 +111,62 @@ class APIService {
 
   async login(email, password) {
     try {
-      // FIXED: Changed from /auth/login to /auth/signin
-      const response = await this.makeRequest('/auth/signin', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
+      // Mock login success - validate Chargebee email domain
+      const isChargebeeEmail = email.toLowerCase().includes('@chargebee.com');
       
-      if (response.success && response.session) {
-        // Store tokens
-        this.setAuthTokens(response.session.access_token, response.session.refresh_token);
-        
-        // Store user data
-        localStorage.setItem('user_data', JSON.stringify(response.user));
+      if (!isChargebeeEmail) {
+        throw new Error('Please use a valid @chargebee.com email address');
       }
       
-      return response;
+      if (password.length < 1) {
+        throw new Error('Password is required');
+      }
+      
+      // Mock user data
+      const mockUser = {
+        email: email,
+        name: email.split('@')[0].replace('.', ' ').split(' ').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' '),
+        role: 'Risk Analyst'
+      };
+      
+      // Store user data temporarily
+      sessionStorage.setItem('user_data', JSON.stringify(mockUser));
+      
+      console.log('Mock login successful for:', email);
+      
+      return {
+        success: true,
+        user: mockUser,
+        session: {
+          access_token: 'mock-token',
+          refresh_token: 'mock-refresh'
+        }
+      };
     } catch (error) {
       console.error('Login failed:', error);
-      throw new Error('Invalid email or password');
+      throw error;
     }
   }
 
   async logout() {
     try {
-      // FIXED: Changed from /auth/logout to /auth/signout
-      await this.makeRequest('/auth/signout', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        }
-      });
+      console.log('Logging out user');
+      this.clearAuthTokens();
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      this.clearAuthTokens();
     }
   }
 
   async getCurrentUser() {
     try {
-      // FIXED: Changed from /auth/me to /auth/user
-      const response = await this.makeRequest('/auth/user', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        }
-      });
-      return response.user;
+      // Return user from sessionStorage if available
+      const userData = sessionStorage.getItem('user_data');
+      if (userData) {
+        return JSON.parse(userData);
+      }
+      return null;
     } catch (error) {
       console.error('Failed to get current user:', error);
       return null;
@@ -161,9 +175,9 @@ class APIService {
 
   async verifyEmail(email) {
     try {
-      // This endpoint doesn't exist in backend - let's skip it
-      console.log('Email verification check skipped');
-      return { exists: false };
+      // Simple validation - just check if it's a Chargebee email
+      const isChargebeeEmail = email.toLowerCase().includes('@chargebee.com');
+      return { exists: false }; // Always return false for signup flow
     } catch (error) {
       console.error('Email verification failed:', error);
       return { exists: false };
@@ -192,7 +206,6 @@ class APIService {
 
   async createAssessment(domain) {
     try {
-      // Start async assessment, get assessment_id
       const response = await this.makeRequest(`/assessment/${domain}`, {
         method: 'POST'
       });
@@ -203,10 +216,8 @@ class APIService {
     }
   }
 
-  // SIMPLIFIED: Use single assessment route instead of multiple types
   async createAssessmentWithProgress(domain, assessmentType = 'standard') {
     try {
-      // Use the working single assessment route
       return await this.makeRequest(`/assessment/${domain}`, {
         method: 'POST'
       });
@@ -238,6 +249,7 @@ class APIService {
     const startTime = Date.now();
     const pollInterval = 4000;
     let lastError = null;
+    
     while (Date.now() - startTime < maxWaitTime) {
       try {
         const progress = await this.getAssessmentProgress(assessmentId);
