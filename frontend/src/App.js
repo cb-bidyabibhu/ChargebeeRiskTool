@@ -586,7 +586,6 @@ const ChargebeeStyleDashboard = () => {
   const [currentAssessment, setCurrentAssessment] = useState(null);
   const [recentAssessments, setRecentAssessments] = useState([]);
   const [expandedSections, setExpandedSections] = useState({});
-  // NEW: Progress tracking state
   const [assessmentProgress, setAssessmentProgress] = useState(null);
   const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
   const [showProcessingMessage, setShowProcessingMessage] = useState(false);
