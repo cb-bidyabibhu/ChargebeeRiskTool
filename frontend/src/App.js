@@ -1104,8 +1104,8 @@ const ChargebeeStyleDashboard = () => {
 
           {/* Right Column: Welcome or Assessment Details, full height */}
           <div className="lg:col-span-2 flex flex-col h-full min-w-0">
-            {assessmentProgress ? (
-              /* Show progress during assessment */
+            {/* Show progress and partial data if assessment is in progress */}
+            {assessmentProgress && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
                 <div className="text-center">
                   <div className="mb-6">
@@ -1146,7 +1146,7 @@ const ChargebeeStyleDashboard = () => {
                     </div>
                     <div className="text-xs text-blue-700 space-y-1">
                       <div>Type: Assessment</div>
-                      <div>Started: {new Date(assessmentProgress.started_at).toLocaleTimeString()}</div>
+                      <div>Started: {assessmentProgress.started_at ? new Date(assessmentProgress.started_at).toLocaleTimeString() : 'N/A'}</div>
                       <div>Status: {assessmentProgress.status || 'Running'}</div>
                       {currentAssessmentId && (
                         <div>
@@ -1181,344 +1181,224 @@ const ChargebeeStyleDashboard = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-            ) : currentAssessment ? (
-              <div className="space-y-6">
-                
-                {/* Assessment Header - FIXED THE CRASH HERE */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                          {safeRenderAssessmentTitle(currentAssessment)}
-                          <ExternalLink 
-                            className="w-5 h-5 ml-2 text-gray-400 cursor-pointer hover:text-blue-600" 
-                            onClick={() => window.open(`https://${safeGetDomain(currentAssessment)}`, '_blank')}
-                          />
-                        </h2>
-                        <p className="text-gray-600">{safeGetCompanyName(currentAssessment)}</p>
-                        <p className="text-sm text-gray-500">
-                          Assessment generated on {new Date(currentAssessment.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
+                {/* Show partial/streaming data if available */}
+                {currentAssessment && (
+                  <div className="mt-8">
+                    <div className="text-center mb-4">
+                      <span className="inline-block px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Partial Data (Live)</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => {
-                          copyToClipboard(currentAssessment.id);
-                          addToast('Assessment ID copied to clipboard!', 'success');
-                        }}
-                        className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        title="Copy Assessment ID"
-                      >
-                        <Copy className="w-4 h-4" />
-                        <span className="text-xs">Copy ID</span>
-                      </button>
-                      <button 
-                        onClick={() => generatePDFReport(currentAssessment)}
-                        className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Export PDF</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Risk Score Display */}
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-center">
-                      <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full text-4xl font-bold border-8 ${getRiskBgColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskBorderColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskColor(currentAssessment.risk_assessment_data?.weighted_total_score)}`}>
-                        {currentAssessment.risk_assessment_data?.weighted_total_score?.toFixed(0) || 'N/A'}
-                      </div>
-                      <div className={`mt-4 px-4 py-2 rounded-full text-lg font-bold ${getRiskBgColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskColor(currentAssessment.risk_assessment_data?.weighted_total_score)}`}>
-                        {getRiskLevel(currentAssessment.risk_assessment_data?.weighted_total_score)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Risk Factor Breakdown */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Risk Factor Breakdown</h3>
-                  
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    {Object.entries(currentAssessment.risk_assessment_data?.risk_categories || {}).slice(0, 6).map(([key, category], index) => {
-                      const icons = [
-                        TrendingUp, DollarSign, Lock, Building, Scale, FileText
-                      ];
-                      const IconComponent = icons[index] || FileText;
-                      
-                      return (
-                        <div key={key} className="text-center p-4 rounded-lg border border-gray-200">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2 ${getRiskBgColor(category.average_score)}`}>
-                            <IconComponent className={`w-6 h-6 ${getRiskColor(category.average_score)}`} />
+                    {/* Risk Score Display (if available) */}
+                    {currentAssessment.risk_assessment_data?.weighted_total_score !== undefined && (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="text-center">
+                          <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full text-4xl font-bold border-8 ${getRiskBgColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskBorderColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskColor(currentAssessment.risk_assessment_data?.weighted_total_score)}`}>
+                            {currentAssessment.risk_assessment_data?.weighted_total_score?.toFixed(0)}
                           </div>
-                          <div className={`text-2xl font-bold ${getRiskColor(category.average_score)}`}>
-                            {category.average_score?.toFixed(0) || 'N/A'}
+                          <div className={`mt-4 px-4 py-2 rounded-full text-lg font-bold ${getRiskBgColor(currentAssessment.risk_assessment_data?.weighted_total_score)} ${getRiskColor(currentAssessment.risk_assessment_data?.weighted_total_score)}`}>
+                            {getRiskLevel(currentAssessment.risk_assessment_data?.weighted_total_score)}
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {formatRiskCategory(key).replace(' Risk', '')}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Detailed Categories */}
-                <div className="space-y-4">
-                  {Object.entries(currentAssessment.risk_assessment_data?.risk_categories || {}).map(([categoryKey, categoryData]) => (
-                    <div key={categoryKey} className="bg-white rounded-xl shadow-sm border border-gray-200">
-                      <button
-                        onClick={() => toggleSection(categoryKey)}
-                        className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getRiskBgColor(categoryData.average_score)}`}>
-                            {categoryKey === 'reputation_risk' && <TrendingUp className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'financial_risk' && <DollarSign className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'technology_risk' && <Lock className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'business_risk' && <Building className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'legal_compliance_risk' && <Scale className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {formatRiskCategory(categoryKey)}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              Weight: {Math.round(categoryData.weight * 100)}% • Score: {categoryData.average_score?.toFixed(1)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskBgColor(categoryData.average_score)} ${getRiskColor(categoryData.average_score)}`}>
-                            {categoryData.average_score?.toFixed(1)}
-                          </div>
-                          {expandedSections[categoryKey] ? 
-                            <ChevronUp className="w-5 h-5 text-gray-400" /> : 
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                          }
-                        </div>
-                      </button>
-
-                      {expandedSections[categoryKey] && (
-                        <div className="px-6 pb-6 border-t border-gray-100">
-                          <div className="space-y-4 mt-4">
-                            {categoryData.checks?.map((check, index) => (
-                              <div key={index} className="bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h5 className="font-medium text-gray-900">{check.check_name}</h5>
-                                  <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskBgColor(check.score)} ${getRiskColor(check.score)}`}>
-                                      {check.score}/10
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600">{check.reason}</p>
-                                {check.insight && (
-                                  <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded border-l-4 border-blue-200">
-                                    <Info className="w-4 h-4 inline mr-1" />
-                                    {check.insight}
-                                  </p>
-                                )}
-                                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                                  <span>Source: {check.source}</span>
-                                  <span className={`flex items-center ${check.public_data_available ? 'text-green-600' : 'text-red-600'}`}>
-                                    {check.public_data_available ? <CheckCircle className="w-3 h-3 mr-1" /> : <AlertTriangle className="w-3 h-3 mr-1" />}
-                                    {check.public_data_available ? 'Data Available' : 'No Public Data'}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Raw Scraper Data Section */}
-                {currentAssessment.scraped_data && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
-                    <button
-                      onClick={() => toggleSection('raw_scraper_data')}
-                      className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <Database className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Raw Scraper Data</h3>
-                          <p className="text-sm text-gray-500">
-                            {currentAssessment.scraped_data.collection_summary?.successful_scrapers || 0} successful • 
-                            {currentAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed • 
-                            {currentAssessment.scraped_data.collection_summary?.success_rate || 0}% success rate
-                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium">
-                          {Object.keys(currentAssessment.scraped_data).filter(key => !key.startsWith('collection_') && !['domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode'].includes(key)).length} sources
-                        </div>
-                        {expandedSections['raw_scraper_data'] ? 
-                          <ChevronUp className="w-5 h-5 text-gray-400" /> : 
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        }
-                      </div>
-                    </button>
-
-                    {expandedSections['raw_scraper_data'] && (
-                      <div className="px-6 pb-6 border-t border-gray-100">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                          {Object.entries(currentAssessment.scraped_data).map(([scraperKey, scraperData]) => {
-                            // Skip metadata fields
-                            if (['collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode', 'collection_summary'].includes(scraperKey)) {
-                              return null;
-                            }
-
-                            const isError = scraperData?.error;
-                            const metadata = scraperData?._scraper_metadata;
-                            const hasSourceUrl = metadata?.source_url;
-
+                    )}
+                    {/* Risk Factor Breakdown (if available) */}
+                    {currentAssessment.risk_assessment_data?.risk_categories && (
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Risk Factor Breakdown (Partial)</h3>
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                          {Object.entries(currentAssessment.risk_assessment_data?.risk_categories || {}).slice(0, 6).map(([key, category], index) => {
+                            const icons = [TrendingUp, DollarSign, Lock, Building, Scale, FileText];
+                            const IconComponent = icons[index] || FileText;
                             return (
-                              <div key={scraperKey} className={`border rounded-lg p-4 ${isError ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <div className={`w-3 h-3 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                                    <h4 className="font-semibold text-gray-900 capitalize">
-                                      {scraperKey.replace(/_/g, ' ')}
-                                    </h4>
-                                  </div>
-                                  {hasSourceUrl && (
-                                    <button
-                                      onClick={() => window.open(metadata.source_url, '_blank')}
-                                      className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm"
-                                      title={`View source: ${metadata.source_url}`}
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                      <span>Source</span>
-                                    </button>
-                                  )}
+                              <div key={key} className="text-center p-4 rounded-lg border border-gray-200">
+                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2 ${getRiskBgColor(category.average_score)}`}>
+                                  <IconComponent className={`w-6 h-6 ${getRiskColor(category.average_score)}`} />
                                 </div>
-
-                                {metadata && (
-                                  <div className="text-xs text-gray-600 mb-2">
-                                    <div className="flex items-center justify-between">
-                                      <span>{metadata.description}</span>
-                                      <span>{metadata.execution_time}s</span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-1">
-                                      <span className={`px-2 py-0.5 rounded text-xs ${
-                                        metadata.quality === 'high' ? 'bg-green-100 text-green-700' :
-                                        metadata.quality === 'low' ? 'bg-yellow-100 text-yellow-700' :
-                                        'bg-red-100 text-red-700'
-                                      }`}>
-                                        {metadata.quality} quality
-                                      </span>
-                                      <span className="text-gray-500">
-                                        {new Date(metadata.timestamp).toLocaleTimeString()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {isError ? (
-                                  <div className="text-sm text-red-700">
-                                    <p className="font-medium">Error:</p>
-                                    <p className="mt-1">{scraperData.error}</p>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <button
-                                      onClick={() => toggleSection(`scraper_${scraperKey}`)}
-                                      className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-800"
-                                    >
-                                      {expandedSections[`scraper_${scraperKey}`] ? 
-                                        <ChevronUp className="w-4 h-4" /> : 
-                                        <ChevronDown className="w-4 h-4" />
-                                      }
-                                      <span>View Raw Data</span>
-                                    </button>
-
-                                    {expandedSections[`scraper_${scraperKey}`] && (
-                                      <div className="mt-2 p-3 bg-white rounded border">
-                                        <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">
-                                          {JSON.stringify(scraperData, null, 2)}
-                                        </pre>
-                                      </div>
-                                    )}
-
-                                    {/* Show key data points for quick reference */}
-                                    <div className="text-sm text-gray-700">
-                                      {scraperKey === 'https_check' && scraperData.has_https !== undefined && (
-                                        <p><span className="font-medium">HTTPS:</span> {scraperData.has_https ? '✅ Enabled' : '❌ Disabled'}</p>
-                                      )}
-                                      {scraperKey === 'whois_data' && scraperData.registrar && (
-                                        <p><span className="font-medium">Registrar:</span> {scraperData.registrar}</p>
-                                      )}
-                                      {scraperKey === 'google_safe_browsing' && scraperData['Current Status'] && (
-                                        <p><span className="font-medium">Status:</span> {scraperData['Current Status']}</p>
-                                      )}
-                                      {scraperKey === 'ssl_org_report' && scraperData.report_summary?.ssl_grade && (
-                                        <p><span className="font-medium">SSL Grade:</span> {scraperData.report_summary.ssl_grade}</p>
-                                      )}
-                                      {scraperKey === 'ofac_sanctions' && scraperData.sanctions_screening && (
-                                        <p><span className="font-medium">OFAC Status:</span> {scraperData.sanctions_screening.status}</p>
-                                      )}
-                                      {scraperKey === 'tranco_ranking' && scraperData['Tranco Rank'] && (
-                                        <p><span className="font-medium">Rank:</span> {scraperData['Tranco Rank']}</p>
-                                      )}
-                                      {scraperKey === 'industry_classification' && scraperData.industry_category && (
-                                        <p><span className="font-medium">Industry:</span> {scraperData.industry_category}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
+                                <div className={`text-2xl font-bold ${getRiskColor(category.average_score)}`}>{category.average_score?.toFixed(0) || 'N/A'}</div>
+                                <div className="text-xs text-gray-500 mt-1">{formatRiskCategory(key).replace(' Risk', '')}</div>
                               </div>
                             );
                           })}
                         </div>
-
-                        {/* Collection Summary */}
-                        {currentAssessment.scraped_data.collection_summary && (
-                          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h4 className="font-semibold text-blue-900 mb-2">Collection Summary</h4>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <p className="text-blue-700 font-medium">Total Scrapers</p>
-                                <p className="text-blue-900">{currentAssessment.scraped_data.collection_summary.total_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-green-700 font-medium">Successful</p>
-                                <p className="text-green-900">{currentAssessment.scraped_data.collection_summary.successful_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-red-700 font-medium">Failed</p>
-                                <p className="text-red-900">{currentAssessment.scraped_data.collection_summary.failed_scrapers}</p>
-                              </div>
-                              <div>
-                                <p className="text-blue-700 font-medium">Success Rate</p>
-                                <p className="text-blue-900">{currentAssessment.scraped_data.collection_summary.success_rate}%</p>
-                              </div>
+                      </div>
+                    )}
+                    {/* Raw Scraper Data (if available) */}
+                    {currentAssessment.scraped_data && (
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
+                        <button
+                          onClick={() => toggleSection('raw_scraper_data')}
+                          className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                              <Database className="w-6 h-6 text-indigo-600" />
                             </div>
-                            <div className="mt-3 text-sm">
-                              <p className="text-blue-700">
-                                <span className="font-medium">Quality Level:</span> 
-                                <span className={`ml-1 px-2 py-0.5 rounded text-xs ${
-                                  currentAssessment.scraped_data.collection_summary.quality_level === 'EXCELLENT' ? 'bg-green-100 text-green-700' :
-                                  currentAssessment.scraped_data.collection_summary.quality_level === 'GOOD' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {currentAssessment.scraped_data.collection_summary.quality_level}
-                                </span>
-                              </p>
-                              <p className="text-blue-700 mt-1">
-                                <span className="font-medium">Execution Mode:</span> {currentAssessment.scraped_data.execution_mode || 'sequential_complete'}
-                              </p>
-                              <p className="text-blue-700 mt-1">
-                                <span className="font-medium">Collection Time:</span> {new Date(currentAssessment.scraped_data.collection_summary.collection_time).toLocaleString()}
+                            <div>
+                              <h3 className="text-lg font-semibold text-gray-900">Raw Scraper Data (Partial)</h3>
+                              <p className="text-sm text-gray-500">
+                                {currentAssessment.scraped_data.collection_summary?.successful_scrapers || 0} successful •
+                                {currentAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed •
+                                {currentAssessment.scraped_data.collection_summary?.success_rate || 0}% success rate
                               </p>
                             </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium">
+                              {Object.keys(currentAssessment.scraped_data).filter(key => !key.startsWith('collection_') && !['domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode'].includes(key)).length} sources
+                            </div>
+                            {expandedSections['raw_scraper_data'] ?
+                              <ChevronUp className="w-5 h-5 text-gray-400" /> :
+                              <ChevronDown className="w-5 h-5 text-gray-400" />
+                            }
+                          </div>
+                        </button>
+                        {expandedSections['raw_scraper_data'] && (
+                          <div className="px-6 pb-6 border-t border-gray-100">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                              {Object.entries(currentAssessment.scraped_data).map(([scraperKey, scraperData]) => {
+                                if ([
+                                  'collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode', 'collection_summary'
+                                ].includes(scraperKey)) {
+                                  return null;
+                                }
+                                const isError = scraperData?.error;
+                                const metadata = scraperData?._scraper_metadata;
+                                const hasSourceUrl = metadata?.source_url;
+                                return (
+                                  <div key={scraperKey} className={`border rounded-lg p-4 ${isError ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center space-x-2">
+                                        <div className={`w-3 h-3 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                        <h4 className="font-semibold text-gray-900 capitalize">
+                                          {scraperKey.replace(/_/g, ' ')}
+                                        </h4>
+                                      </div>
+                                      {hasSourceUrl && (
+                                        <button
+                                          onClick={() => window.open(metadata.source_url, '_blank')}
+                                          className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm"
+                                          title={`View source: ${metadata.source_url}`}
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                          <span>Source</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                    {metadata && (
+                                      <div className="text-xs text-gray-600 mb-2">
+                                        <div className="flex items-center justify-between">
+                                          <span>{metadata.description}</span>
+                                          <span>{metadata.execution_time}s</span>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-1">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${
+                                            metadata.quality === 'high' ? 'bg-green-100 text-green-700' :
+                                            metadata.quality === 'low' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-red-100 text-red-700'
+                                          }`}>
+                                            {metadata.quality} quality
+                                          </span>
+                                          <span className="text-gray-500">
+                                            {new Date(metadata.timestamp).toLocaleTimeString()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {isError ? (
+                                      <div className="text-sm text-red-700">
+                                        <p className="font-medium">Error:</p>
+                                        <p className="mt-1">{scraperData.error}</p>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <button
+                                          onClick={() => toggleSection(`scraper_${scraperKey}`)}
+                                          className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-800"
+                                        >
+                                          {expandedSections[`scraper_${scraperKey}`] ?
+                                            <ChevronUp className="w-4 h-4" /> :
+                                            <ChevronDown className="w-4 h-4" />
+                                          }
+                                          <span>View Raw Data</span>
+                                        </button>
+                                        {expandedSections[`scraper_${scraperKey}`] && (
+                                          <div className="mt-2 p-3 bg-white rounded border">
+                                            <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">
+                                              {JSON.stringify(scraperData, null, 2)}
+                                            </pre>
+                                          </div>
+                                        )}
+                                        {/* Show key data points for quick reference */}
+                                        <div className="text-sm text-gray-700">
+                                          {scraperKey === 'https_check' && scraperData.has_https !== undefined && (
+                                            <p><span className="font-medium">HTTPS:</span> {scraperData.has_https ? '✅ Enabled' : '❌ Disabled'}</p>
+                                          )}
+                                          {scraperKey === 'whois_data' && scraperData.registrar && (
+                                            <p><span className="font-medium">Registrar:</span> {scraperData.registrar}</p>
+                                          )}
+                                          {scraperKey === 'google_safe_browsing' && scraperData['Current Status'] && (
+                                            <p><span className="font-medium">Status:</span> {scraperData['Current Status']}</p>
+                                          )}
+                                          {scraperKey === 'ssl_org_report' && scraperData.report_summary?.ssl_grade && (
+                                            <p><span className="font-medium">SSL Grade:</span> {scraperData.report_summary.ssl_grade}</p>
+                                          )}
+                                          {scraperKey === 'ofac_sanctions' && scraperData.sanctions_screening && (
+                                            <p><span className="font-medium">OFAC Status:</span> {scraperData.sanctions_screening.status}</p>
+                                          )}
+                                          {scraperKey === 'tranco_ranking' && scraperData['Tranco Rank'] && (
+                                            <p><span className="font-medium">Rank:</span> {scraperData['Tranco Rank']}</p>
+                                          )}
+                                          {scraperKey === 'industry_classification' && scraperData.industry_category && (
+                                            <p><span className="font-medium">Industry:</span> {scraperData.industry_category}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {/* Collection Summary */}
+                            {currentAssessment.scraped_data.collection_summary && (
+                              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <h4 className="font-semibold text-blue-900 mb-2">Collection Summary</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                  <div>
+                                    <p className="text-blue-700 font-medium">Total Scrapers</p>
+                                    <p className="text-blue-900">{currentAssessment.scraped_data.collection_summary.total_scrapers}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-green-700 font-medium">Successful</p>
+                                    <p className="text-green-900">{currentAssessment.scraped_data.collection_summary.successful_scrapers}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-red-700 font-medium">Failed</p>
+                                    <p className="text-red-900">{currentAssessment.scraped_data.collection_summary.failed_scrapers}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-blue-700 font-medium">Success Rate</p>
+                                    <p className="text-blue-900">{currentAssessment.scraped_data.collection_summary.success_rate}%</p>
+                                  </div>
+                                </div>
+                                <div className="mt-3 text-sm">
+                                  <p className="text-blue-700">
+                                    <span className="font-medium">Quality Level:</span>
+                                    <span className={`ml-1 px-2 py-0.5 rounded text-xs ${
+                                      currentAssessment.scraped_data.collection_summary.quality_level === 'EXCELLENT' ? 'bg-green-100 text-green-700' :
+                                      currentAssessment.scraped_data.collection_summary.quality_level === 'GOOD' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {currentAssessment.scraped_data.collection_summary.quality_level}
+                                    </span>
+                                  </p>
+                                  <p className="text-blue-700 mt-1">
+                                    <span className="font-medium">Execution Mode:</span> {currentAssessment.scraped_data.execution_mode || 'sequential_complete'}
+                                  </p>
+                                  <p className="text-blue-700 mt-1">
+                                    <span className="font-medium">Collection Time:</span> {new Date(currentAssessment.scraped_data.collection_summary.collection_time).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1526,87 +1406,13 @@ const ChargebeeStyleDashboard = () => {
                   </div>
                 )}
               </div>
-            ) : (
-              /* Welcome to Chargebee KYB Assessment */
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 flex flex-col justify-center h-full">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Shield className="w-10 h-10 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2 text-center">Welcome to Chargebee KYB Assessment</h3>
-                <p className="text-gray-600 mb-8 text-center">Our comprehensive risk assessment analyzes businesses across 5 critical dimensions:</p>
-                
-                {/* Five Types of Checks */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <TrendingUp className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Reputation Risk</h4>
-                      <p className="text-sm text-gray-600">Online presence, customer reviews, social media analysis</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Financial Risk</h4>
-                      <p className="text-sm text-gray-600">Financial health, business model viability, funding status</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Lock className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Technology Risk</h4>
-                      <p className="text-sm text-gray-600">Website security, SSL certificates, data protection</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Building className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Business Risk</h4>
-                      <p className="text-sm text-gray-600">Company age, domain history, business verification</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Scale className="w-5 h-5 text-red-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Legal & Compliance Risk</h4>
-                      <p className="text-sm text-gray-600">OFAC sanctions, privacy policies, terms of service</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-sm text-gray-500 mb-2">Enter a business domain in the Assessment Hub to get started</p>
-                  <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span>60-90 seconds</span>
-                    </div>
-                    <span>•</span>
-                    <div className="flex items-center">
-                      <Database className="w-4 h-4 mr-1" />
-                      <span>20+ data sources</span>
-                    </div>
-                    <span>•</span>
-                    <div className="flex items-center">
-                      <Globe className="w-4 h-4 mr-1" />
-                      <span>Real-time analysis</span>
-                    </div>
-                  </div>
-                </div>
+            )}
+            {/* If no partial data yet, show waiting message */}
+            {!currentAssessment && (
+              <div className="mt-8 text-center text-gray-500">
+                <Info className="w-6 h-6 mx-auto mb-2 text-blue-400" />
+                Waiting for data from the backend...<br />
+                As soon as data is available, it will appear here.
               </div>
             )}
           </div>
