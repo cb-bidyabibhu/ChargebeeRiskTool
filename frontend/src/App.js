@@ -1698,6 +1698,12 @@ const RiskAssessmentsPage = () => {
   const [view, setView] = useState('list'); // 'list' or 'detail'
   const [expandedSections, setExpandedSections] = useState({});
 
+  // Add these hooks/utilities for AssessmentListView actions
+  const { addToast } = useToast();
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
+  const [showProcessingMessage, setShowProcessingMessage] = useState(false);
+  const { addInProgressAssessment } = useAssessmentState();
+
   useEffect(() => {
     loadAssessments();
   }, []);
