@@ -497,7 +497,7 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // Header Component
-const Header = ({ user, onLogout }) => {
+const Header = ({ user, onLogout, inProgressAssessments = new Set() }) => {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
       <div className="flex items-center justify-between">
@@ -518,6 +518,14 @@ const Header = ({ user, onLogout }) => {
             <Mail className="w-4 h-4" />
             <span>{user.email}</span>
           </div>
+          
+          {/* ADD THIS PROGRESS INDICATOR */}
+          {inProgressAssessments.size > 0 && (
+            <div className="flex items-center space-x-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>{inProgressAssessments.size} assessment(s) running</span>
+            </div>
+          )}
           
           <div className="flex items-center space-x-2">
             <button
@@ -628,51 +636,66 @@ const ChargebeeStyleDashboard = () => {
     }
   };
 
-  // Poll function for assessment completion
-  const pollAssessment = async (assessmentId, domainName) => {
-    const pollInterval = 4000; // 4 seconds
-    const maxWaitTime = 900000; // 15 minutes
-    const startTime = Date.now();
+// NON-BLOCKING Poll function for assessment completion
+const pollAssessment = (assessmentId, domainName) => {
+  const pollInterval = 4000; // 4 seconds
+  const maxWaitTime = 900000; // 15 minutes
+  const startTime = Date.now();
+  
+  const pollOnce = () => {
+    // Check if we've exceeded max wait time
+    if (Date.now() - startTime > maxWaitTime) {
+      console.error('Assessment timed out after 15 minutes');
+      setAssessmentProgress(null);
+      removeInProgressAssessment(assessmentId);
+      addToast(`Assessment timed out for ${domainName}`, 'error');
+      setCurrentAssessmentId(null);
+      setCurrentAssessmentDomain('');
+      localStorage.removeItem('currentAssessmentId');
+      localStorage.removeItem('currentAssessmentDomain');
+      setIsAssessing(false);
+      return;
+    }
     
-    const pollOnce = async () => {
-      try {
-        // Check if we've exceeded max wait time
-        if (Date.now() - startTime > maxWaitTime) {
-          throw new Error('Assessment timed out after 15 minutes');
-        }
-        
-        const progress = await apiService.getAssessmentProgress(assessmentId);
-        
+    apiService.getAssessmentProgress(assessmentId)
+      .then(progress => {
         // Update progress in UI
         setAssessmentProgress(progress);
         updateProgress(assessmentId, progress);
         
         if (progress.status === 'completed') {
           // Assessment completed - get result
-          const result = await apiService.getAssessmentResult(assessmentId);
-          
-          // Success - show results
-          setCurrentAssessment(result.result);
-          setAssessmentProgress(null);
-          removeInProgressAssessment(assessmentId);
-          setCurrentAssessmentId(null);
-          setCurrentAssessmentDomain('');
-          addToast(`Assessment completed for ${domainName}`, 'success');
-          localStorage.removeItem('currentAssessmentId');
-          localStorage.removeItem('currentAssessmentDomain');
-          setIsAssessing(false);
-          setTimeout(loadRecentAssessments, 1000);
-          return; // Stop polling
-          
+          apiService.getAssessmentResult(assessmentId)
+            .then(result => {
+              // Success - show results
+              setCurrentAssessment(result.result);
+              setAssessmentProgress(null);
+              removeInProgressAssessment(assessmentId);
+              setCurrentAssessmentId(null);
+              setCurrentAssessmentDomain('');
+              addToast(`Assessment completed for ${domainName}`, 'success');
+              localStorage.removeItem('currentAssessmentId');
+              localStorage.removeItem('currentAssessmentDomain');
+              setIsAssessing(false);
+              setTimeout(loadRecentAssessments, 1000);
+            })
+            .catch(error => {
+              console.error('Error getting result:', error);
+              setAssessmentProgress(null);
+              removeInProgressAssessment(assessmentId);
+              addToast(`Failed to get result for ${domainName}: ${error.message}`, 'error');
+              setIsAssessing(false);
+            });
+            
         } else if (progress.status === 'failed') {
           throw new Error(progress.error || 'Assessment failed');
           
         } else {
-          // Still in progress - schedule next poll
+          // Still in progress - schedule next poll (NON-BLOCKING)
           setTimeout(pollOnce, pollInterval);
         }
-        
-      } catch (error) {
+      })
+      .catch(error => {
         console.error('Polling error:', error);
         setAssessmentProgress(null);
         removeInProgressAssessment(assessmentId);
@@ -682,12 +705,12 @@ const ChargebeeStyleDashboard = () => {
         localStorage.removeItem('currentAssessmentId');
         localStorage.removeItem('currentAssessmentDomain');
         setIsAssessing(false);
-      }
-    };
-    
-    // Start the first poll
-    pollOnce();
+      });
   };
+  
+  // Start the first poll immediately
+  pollOnce();
+};
 
   // Handle NEW assessment with progress tracking
   const handleStartAssessment = async () => {
@@ -2489,6 +2512,7 @@ const SettingsPage = () => {
 const App = () => {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [globalInProgressAssessments, setGlobalInProgressAssessments] = useState(new Set());
 
   const handleLogin = async (email, password) => {
     try {
@@ -2538,7 +2562,11 @@ const App = () => {
   return (
     <ToastProvider>
       <div className="h-screen flex flex-col bg-gray-50">
-        <Header user={user} onLogout={handleLogout} />
+      <Header 
+        user={user} 
+        onLogout={handleLogout} 
+        inProgressAssessments={globalInProgressAssessments} 
+      />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
           <main className="flex-1 overflow-auto">
