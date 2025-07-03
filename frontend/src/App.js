@@ -1422,7 +1422,7 @@ const ChargebeeStyleDashboard = () => {
 };
 
 // Assessment List View Component - FIXED TABLE
-const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessment, onBulkDelete }) => {
+const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessment, onBulkDelete, addToast, setCurrentAssessmentId, setShowProcessingMessage, addInProgressAssessment }) => {
   const [selectedAssessments, setSelectedAssessments] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
@@ -1785,6 +1785,10 @@ const RiskAssessmentsPage = () => {
             onSelectAssessment={handleSelectAssessment}
             onDeleteAssessment={handleDeleteAssessment}
             onBulkDelete={handleBulkDelete}
+            addToast={addToast}
+            setCurrentAssessmentId={setCurrentAssessmentId}
+            setShowProcessingMessage={setShowProcessingMessage}
+            addInProgressAssessment={addInProgressAssessment}
           />
         </div>
       ) : (
