@@ -587,6 +587,7 @@ const ChargebeeStyleDashboard = () => {
   const [assessmentProgress, setAssessmentProgress] = useState(null);
   const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
   const [currentAssessmentDomain, setCurrentAssessmentDomain] = useState('');
+  const [expandedSections, setExpandedSections] = useState({});
   
   // Enhanced state management
   const {
@@ -738,6 +739,14 @@ const ChargebeeStyleDashboard = () => {
   const selectAssessment = (assessment) => {
     setCurrentAssessment(assessment);
     setAssessmentProgress(null);
+  };
+
+  // Toggle section expansion
+  const toggleSection = (sectionId) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
   };
 
   // Get risk color based on score
@@ -1036,33 +1045,168 @@ const ChargebeeStyleDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Risk Categories Grid */}
+                  {/* Risk Categories Grid - Now Expandable */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {Object.entries(currentAssessment.risk_assessment_data?.risk_categories || {}).map(([categoryKey, categoryData]) => (
-                      <div key={categoryKey} className={`p-4 rounded-lg border-2 ${getRiskBorderColor(categoryData.average_score)} ${getRiskBgColor(categoryData.average_score)}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {formatRiskCategory(categoryKey)}
-                          </h3>
-                          <span className={`text-lg font-bold ${getRiskColor(categoryData.average_score)}`}>
-                            {categoryData.average_score?.toFixed(1) || 'N/A'}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all duration-300 ${
-                              categoryData.average_score >= 7 ? 'bg-green-500' : 
-                              categoryData.average_score >= 4 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${((categoryData.average_score || 0) / 10) * 100}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-2">
-                          {categoryData.checks?.length || 0} checks • Weight: {Math.round(categoryData.weight * 100)}%
-                        </p>
+                      <div key={categoryKey} className={`border-2 rounded-lg ${getRiskBorderColor(categoryData.average_score)} ${getRiskBgColor(categoryData.average_score)}`}>
+                        <button
+                          onClick={() => toggleSection(categoryKey)}
+                          className="w-full p-4 text-left hover:bg-opacity-80 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-gray-900">
+                              {formatRiskCategory(categoryKey)}
+                            </h3>
+                            <div className="flex items-center space-x-2">
+                              <span className={`text-lg font-bold ${getRiskColor(categoryData.average_score)}`}>
+                                {categoryData.average_score?.toFixed(1) || 'N/A'}
+                              </span>
+                              <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform ${expandedSections[categoryKey] ? 'rotate-180' : ''}`} />
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                categoryData.average_score >= 7 ? 'bg-green-500' : 
+                                categoryData.average_score >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${((categoryData.average_score || 0) / 10) * 100}%` }}
+                            ></div>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            {categoryData.checks?.length || 0} checks • Weight: {Math.round(categoryData.weight * 100)}%
+                          </p>
+                        </button>
+                        
+                        {expandedSections[categoryKey] && (
+                          <div className="px-4 pb-4 border-t border-gray-200 bg-white bg-opacity-50">
+                            <div className="space-y-3 mt-3">
+                              {categoryData.checks?.map((check, index) => (
+                                <div key={index} className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="font-medium text-gray-900">{check.check_name}</h5>
+                                    <span className={`px-2 py-1 rounded text-sm font-medium ${
+                                      check.score >= 7 ? 'bg-green-100 text-green-800' :
+                                      check.score >= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-red-100 text-red-800'
+                                    }`}>
+                                      {check.score}/10
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">{check.reason}</p>
+                                  {check.insight && (
+                                    <p className="text-sm text-blue-600 mt-2">
+                                      <Info className="w-4 h-4 inline mr-1" />
+                                      {check.insight}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+
+                  {/* Raw Scraper Data Section - Dashboard Version */}
+                  {currentAssessment.scraped_data && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+                      <button
+                        onClick={() => toggleSection('dashboard_scraper_data')}
+                        className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                            <Database className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">Raw Scraper Data</h3>
+                            <p className="text-sm text-gray-500">
+                              {currentAssessment.scraped_data.collection_summary?.successful_scrapers || 0} successful • 
+                              {currentAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections['dashboard_scraper_data'] ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {expandedSections['dashboard_scraper_data'] && (
+                        <div className="px-4 pb-4 border-t border-gray-100">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            {Object.entries(currentAssessment.scraped_data).map(([scraperKey, scraperData]) => {
+                              // Skip metadata fields
+                              if (['collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode', 'collection_summary'].includes(scraperKey)) {
+                                return null;
+                              }
+
+                              const isError = scraperData?.error;
+                              const metadata = scraperData?._scraper_metadata;
+
+                              return (
+                                <div key={scraperKey} className={`border rounded-lg p-3 ${isError ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <div className={`w-3 h-3 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                      <h4 className="font-medium text-gray-900 text-sm capitalize">
+                                        {scraperKey.replace(/_/g, ' ')}
+                                      </h4>
+                                    </div>
+                                    <button
+                                      onClick={() => toggleSection(`dashboard_scraper_${scraperKey}`)}
+                                      className="text-gray-400 hover:text-gray-600"
+                                    >
+                                      <ChevronDown className={`w-4 h-4 transform transition-transform ${expandedSections[`dashboard_scraper_${scraperKey}`] ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  </div>
+
+                                  {isError ? (
+                                    <div className="text-sm text-red-700">
+                                      <p className="font-medium">Error:</p>
+                                      <p className="mt-1">{scraperData.error}</p>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {/* Show key data points for quick reference */}
+                                      <div className="text-sm text-gray-700">
+                                        {scraperKey === 'https_check' && scraperData.has_https !== undefined && (
+                                          <p><span className="font-medium">HTTPS:</span> {scraperData.has_https ? '✅ Enabled' : '❌ Disabled'}</p>
+                                        )}
+                                        {scraperKey === 'whois_data' && scraperData.registrar && (
+                                          <p><span className="font-medium">Registrar:</span> {scraperData.registrar}</p>
+                                        )}
+                                        {scraperKey === 'google_safe_browsing' && scraperData['Current Status'] && (
+                                          <p><span className="font-medium">Status:</span> {scraperData['Current Status']}</p>
+                                        )}
+                                        {scraperKey === 'ssl_org_report' && scraperData.report_summary?.ssl_grade && (
+                                          <p><span className="font-medium">SSL Grade:</span> {scraperData.report_summary.ssl_grade}</p>
+                                        )}
+                                        {scraperKey === 'ofac_sanctions' && scraperData.sanctions_screening && (
+                                          <p><span className="font-medium">OFAC Status:</span> {scraperData.sanctions_screening.status}</p>
+                                        )}
+                                        {scraperKey === 'tranco_ranking' && scraperData['Tranco Rank'] && (
+                                          <p><span className="font-medium">Rank:</span> {scraperData['Tranco Rank']}</p>
+                                        )}
+                                        {scraperKey === 'industry_classification' && scraperData.industry_category && (
+                                          <p><span className="font-medium">Industry:</span> {scraperData.industry_category}</p>
+                                        )}
+                                      </div>
+
+                                      {expandedSections[`dashboard_scraper_${scraperKey}`] && (
+                                        <div className="mt-3 p-3 bg-white rounded border">
+                                          <ExpandableDataView data={scraperData} label={scraperKey} />
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex items-center space-x-4 pt-4 border-t border-gray-200">
@@ -1549,44 +1693,108 @@ const RiskAssessmentsPage = () => {
                   </div>
                 </div>
                 
-                {/* Risk Categories */}
+                {/* Risk Categories - Enhanced Expandable */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Categories Analysis</h3>
                   <div className="space-y-4">
                     {Object.entries(selectedAssessment.risk_assessment_data?.risk_categories || {}).map(([categoryKey, categoryData]) => (
-                      <div key={categoryKey} className="border border-gray-200 rounded-lg">
+                      <div key={categoryKey} className="border border-gray-200 rounded-lg overflow-hidden">
                         <button
                           onClick={() => toggleSection(categoryKey)}
-                          className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex items-center space-x-3">
-                            <div className="font-semibold text-gray-900">
-                              {formatRiskCategory(categoryKey)}
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                              categoryData.average_score >= 7 ? 'bg-green-100' :
+                              categoryData.average_score >= 4 ? 'bg-yellow-100' : 'bg-red-100'
+                            }`}>
+                              {categoryKey === 'reputation_risk' && <TrendingUp className={`w-6 h-6 ${
+                                categoryData.average_score >= 7 ? 'text-green-600' :
+                                categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                              }`} />}
+                              {categoryKey === 'financial_risk' && <DollarSign className={`w-6 h-6 ${
+                                categoryData.average_score >= 7 ? 'text-green-600' :
+                                categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                              }`} />}
+                              {categoryKey === 'technology_risk' && <Lock className={`w-6 h-6 ${
+                                categoryData.average_score >= 7 ? 'text-green-600' :
+                                categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                              }`} />}
+                              {categoryKey === 'business_risk' && <Building className={`w-6 h-6 ${
+                                categoryData.average_score >= 7 ? 'text-green-600' :
+                                categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                              }`} />}
+                              {categoryKey === 'legal_compliance_risk' && <Scale className={`w-6 h-6 ${
+                                categoryData.average_score >= 7 ? 'text-green-600' :
+                                categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                              }`} />}
+                              {!['reputation_risk', 'financial_risk', 'technology_risk', 'business_risk', 'legal_compliance_risk'].includes(categoryKey) && 
+                                <Shield className={`w-6 h-6 ${
+                                  categoryData.average_score >= 7 ? 'text-green-600' :
+                                  categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                                }`} />
+                              }
                             </div>
-                            <span className="text-sm text-gray-500">
-                              Score: {categoryData.average_score?.toFixed(1) || 'N/A'}
-                            </span>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                {formatRiskCategory(categoryKey)}
+                              </h4>
+                              <div className="flex items-center space-x-4 mt-1">
+                                <span className={`text-2xl font-bold ${
+                                  categoryData.average_score >= 7 ? 'text-green-600' :
+                                  categoryData.average_score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {categoryData.average_score?.toFixed(1) || 'N/A'}
+                                </span>
+                                <div className="flex-1">
+                                  <div className="w-full bg-gray-200 rounded-full h-3">
+                                    <div 
+                                      className={`h-3 rounded-full transition-all duration-300 ${
+                                        categoryData.average_score >= 7 ? 'bg-green-500' : 
+                                        categoryData.average_score >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                                      }`}
+                                      style={{ width: `${((categoryData.average_score || 0) / 10) * 100}%` }}
+                                    ></div>
+                                  </div>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    {categoryData.checks?.length || 0} checks • Weight: {Math.round(categoryData.weight * 100)}%
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections[categoryKey] ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`w-6 h-6 text-gray-400 transform transition-transform ${expandedSections[categoryKey] ? 'rotate-180' : ''}`} />
                         </button>
                         
                         {expandedSections[categoryKey] && (
-                          <div className="p-4 pt-0 border-t border-gray-100">
-                            <div className="space-y-3">
+                          <div className="px-6 pb-6 border-t border-gray-100 bg-gray-50">
+                            <div className="space-y-4 mt-4">
                               {categoryData.checks?.map((check, index) => (
-                                <div key={index} className="bg-gray-50 rounded-lg p-3">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h5 className="font-medium text-gray-900">{check.check_name}</h5>
-                                    <span className="px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800">
-                                      {check.score}/10
-                                    </span>
+                                <div key={index} className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-1">
+                                      <h5 className="font-semibold text-gray-900 mb-1">{check.check_name}</h5>
+                                      <p className="text-sm text-gray-600 leading-relaxed">{check.reason}</p>
+                                    </div>
+                                    <div className="ml-4 text-center">
+                                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${
+                                        check.score >= 7 ? 'bg-green-100 text-green-600' :
+                                        check.score >= 4 ? 'bg-yellow-100 text-yellow-600' :
+                                        'bg-red-100 text-red-600'
+                                      }`}>
+                                        {check.score}
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-1">out of 10</p>
+                                    </div>
                                   </div>
-                                  <p className="text-sm text-gray-600">{check.reason}</p>
+                                  
                                   {check.insight && (
-                                    <p className="text-sm text-blue-600 mt-2">
-                                      <Info className="w-4 h-4 inline mr-1" />
-                                      {check.insight}
-                                    </p>
+                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <div className="flex items-start space-x-2">
+                                        <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                        <p className="text-sm text-blue-800">{check.insight}</p>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               ))}
@@ -1598,7 +1806,7 @@ const RiskAssessmentsPage = () => {
                   </div>
                 </div>
 
-                {/* Raw Scraper Data Section */}
+                {/* Raw Scraper Data Section - Enhanced */}
                 {selectedAssessment.scraped_data && (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
                     <button
@@ -1613,16 +1821,214 @@ const RiskAssessmentsPage = () => {
                           <h3 className="text-lg font-semibold text-gray-900">Raw Scraper Data</h3>
                           <p className="text-sm text-gray-500">
                             {selectedAssessment.scraped_data.collection_summary?.successful_scrapers || 0} successful • 
-                            {selectedAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed
+                            {selectedAssessment.scraped_data.collection_summary?.failed_scrapers || 0} failed •
+                            {selectedAssessment.scraped_data.collection_summary?.success_rate || 0}% success rate
                           </p>
                         </div>
                       </div>
-                      <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections['raw_scraper_data'] ? 'rotate-180' : ''}`} />
+                      <div className="flex items-center space-x-2">
+                        <div className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium">
+                          {Object.keys(selectedAssessment.scraped_data).filter(key => 
+                            !['collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode', 'collection_summary'].includes(key)
+                          ).length} sources
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-gray-400 transform transition-transform ${expandedSections['raw_scraper_data'] ? 'rotate-180' : ''}`} />
+                      </div>
                     </button>
 
                     {expandedSections['raw_scraper_data'] && (
                       <div className="px-6 pb-6 border-t border-gray-100">
-                        <ExpandableDataView data={selectedAssessment.scraped_data} label="Scraper Data" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                          {Object.entries(selectedAssessment.scraped_data).map(([scraperKey, scraperData]) => {
+                            // Skip metadata fields
+                            if (['collection_timestamp', 'domain', 'scrapers_attempted', 'scrapers_successful', 'scrapers_failed', 'collection_quality', 'execution_mode', 'collection_summary'].includes(scraperKey)) {
+                              return null;
+                            }
+
+                            const isError = scraperData?.error;
+                            const metadata = scraperData?._scraper_metadata;
+                            const hasSourceUrl = metadata?.source_url;
+
+                            return (
+                              <div key={scraperKey} className={`border rounded-lg overflow-hidden ${isError ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                                <div className="p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center space-x-2">
+                                      <div className={`w-3 h-3 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                      <h4 className="font-semibold text-gray-900 capitalize text-sm">
+                                        {scraperKey.replace(/_/g, ' ')}
+                                      </h4>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      {hasSourceUrl && (
+                                        <button
+                                          onClick={() => window.open(metadata.source_url, '_blank')}
+                                          className="p-1 text-blue-600 hover:text-blue-800 rounded"
+                                          title={`View source: ${metadata.source_url}`}
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => toggleSection(`scraper_${scraperKey}`)}
+                                        className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                                      >
+                                        <ChevronDown className={`w-4 h-4 transform transition-transform ${expandedSections[`scraper_${scraperKey}`] ? 'rotate-180' : ''}`} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {metadata && (
+                                    <div className="text-xs text-gray-600 mb-3 space-y-1">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium">{metadata.description}</span>
+                                        <span className="text-gray-500">{metadata.execution_time}s</span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                          metadata.quality === 'high' ? 'bg-green-100 text-green-700' :
+                                          metadata.quality === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                          'bg-red-100 text-red-700'
+                                        }`}>
+                                          {metadata.quality} quality
+                                        </span>
+                                        <span className="text-gray-500">
+                                          {new Date(metadata.timestamp).toLocaleTimeString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {isError ? (
+                                    <div className="text-sm text-red-700">
+                                      <p className="font-medium mb-1">Error:</p>
+                                      <p className="text-xs bg-red-100 p-2 rounded">{scraperData.error}</p>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {/* Show key data points for quick reference */}
+                                      <div className="text-sm text-gray-700 space-y-1">
+                                        {scraperKey === 'https_check' && scraperData.has_https !== undefined && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">HTTPS:</span> 
+                                            <span className={scraperData.has_https ? 'text-green-600' : 'text-red-600'}>
+                                              {scraperData.has_https ? '✅ Enabled' : '❌ Disabled'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'whois_data' && scraperData.registrar && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">Registrar:</span> 
+                                            <span className="truncate ml-2">{scraperData.registrar}</span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'google_safe_browsing' && scraperData['Current Status'] && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">Status:</span> 
+                                            <span className="text-green-600">{scraperData['Current Status']}</span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'ssl_org_report' && scraperData.report_summary?.ssl_grade && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">SSL Grade:</span> 
+                                            <span className="font-bold">{scraperData.report_summary.ssl_grade}</span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'ofac_sanctions' && scraperData.sanctions_screening && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">OFAC:</span> 
+                                            <span className={scraperData.sanctions_screening.status === 'CLEAR' ? 'text-green-600' : 'text-red-600'}>
+                                              {scraperData.sanctions_screening.status}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'tranco_ranking' && scraperData['Tranco Rank'] && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">Rank:</span> 
+                                            <span>#{scraperData['Tranco Rank']}</span>
+                                          </div>
+                                        )}
+                                        {scraperKey === 'industry_classification' && scraperData.industry_category && (
+                                          <div className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">Industry:</span> 
+                                            <span className="truncate ml-2">{scraperData.industry_category}</span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {expandedSections[`scraper_${scraperKey}`] && (
+                                        <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-200">
+                                          <ExpandableDataView data={scraperData} label={scraperKey} />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Enhanced Collection Summary */}
+                        {selectedAssessment.scraped_data.collection_summary && (
+                          <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                            <h4 className="font-semibold text-blue-900 mb-4 flex items-center">
+                              <Activity className="w-5 h-5 mr-2" />
+                              Collection Summary & Performance
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-blue-600">
+                                  {selectedAssessment.scraped_data.collection_summary.total_scrapers}
+                                </div>
+                                <p className="text-sm text-blue-700 font-medium">Total Scrapers</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-green-600">
+                                  {selectedAssessment.scraped_data.collection_summary.successful_scrapers}
+                                </div>
+                                <p className="text-sm text-green-700 font-medium">Successful</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-red-600">
+                                  {selectedAssessment.scraped_data.collection_summary.failed_scrapers}
+                                </div>
+                                <p className="text-sm text-red-700 font-medium">Failed</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-purple-600">
+                                  {selectedAssessment.scraped_data.collection_summary.success_rate}%
+                                </div>
+                                <p className="text-sm text-purple-700 font-medium">Success Rate</p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                <p className="text-blue-700 font-medium mb-1">Quality Level</p>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  selectedAssessment.scraped_data.collection_summary.quality_level === 'EXCELLENT' ? 'bg-green-100 text-green-700' :
+                                  selectedAssessment.scraped_data.collection_summary.quality_level === 'GOOD' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {selectedAssessment.scraped_data.collection_summary.quality_level}
+                                </span>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                <p className="text-blue-700 font-medium mb-1">Execution Mode</p>
+                                <p className="text-blue-900 font-mono text-xs">
+                                  {selectedAssessment.scraped_data.execution_mode || 'sequential_complete'}
+                                </p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                <p className="text-blue-700 font-medium mb-1">Collection Time</p>
+                                <p className="text-blue-900 text-xs">
+                                  {new Date(selectedAssessment.scraped_data.collection_summary.collection_time).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
