@@ -143,14 +143,14 @@ def extract_company_name_from_domain(domain: str) -> str:
 
 # --- AMAZING SCRAPER COORDINATION ---
 def collect_amazing_data(domain: str) -> Dict:
-    """🚀 THE MOST COMPREHENSIVE DATA COLLECTION POSSIBLE"""
+    """🚀 THE MOST COMPREHENSIVE DATA COLLECTION POSSIBLE - SEQUENTIAL EXECUTION"""
     if not SCRAPERS_AVAILABLE:
         print("⚠️ Scrapers not available - returning empty data")
         return {}
     
-    print(f"🚀 STARTING AMAZING DATA COLLECTION for: {domain}")
-    print(f"⏱️ Collecting from ALL available sources (60-90 seconds)...")
-    print(f"🎯 Target: 10+ scrapers with maximum data quality")
+    print(f"🚀 STARTING SEQUENTIAL AMAZING DATA COLLECTION for: {domain}")
+    print(f"⏱️ Running ALL scrapers first, then proceeding with AI analysis...")
+    print(f"🎯 Target: Complete all scrapers before decision making")
     
     scraped_data = {
         "collection_timestamp": datetime.now().isoformat(),
@@ -158,11 +158,12 @@ def collect_amazing_data(domain: str) -> Dict:
         "scrapers_attempted": 0,
         "scrapers_successful": 0,
         "scrapers_failed": 0,
-        "collection_quality": "amazing"
+        "collection_quality": "amazing",
+        "execution_mode": "sequential_complete"
     }
     
-    def run_scraper_with_amazing_quality(scraper_name, scraper_func, description, timeout=30):
-        """Run scraper with maximum quality settings"""
+    def run_scraper_with_source_info(scraper_name, scraper_func, description, source_url, timeout=30):
+        """Run scraper with enhanced metadata including source URLs"""
         print(f"  🔍 Running {scraper_name}: {description}")
         scraped_data["scrapers_attempted"] += 1
         
@@ -179,76 +180,109 @@ def collect_amazing_data(domain: str) -> Dict:
                 print(f"    ✅ {scraper_name} completed successfully in {execution_time}s")
                 scraped_data["scrapers_successful"] += 1
                 
-                # Add metadata to result
+                # Add comprehensive metadata to result
                 if isinstance(result, dict):
                     result["_scraper_metadata"] = {
                         "scraper_name": scraper_name,
+                        "description": description,
                         "execution_time": execution_time,
                         "quality": "high",
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
+                        "source_url": source_url,
+                        "source_type": "external_api",
+                        "data_freshness": "real_time",
+                        "confidence": "high"
                     }
                 
                 return result
             else:
                 print(f"    ⚠️ {scraper_name} returned low quality data in {execution_time}s")
                 scraped_data["scrapers_failed"] += 1
-                return {"error": f"Low quality data: {result}", "scraper": scraper_name}
+                return {
+                    "error": f"Low quality data: {result}", 
+                    "scraper": scraper_name,
+                    "_scraper_metadata": {
+                        "scraper_name": scraper_name,
+                        "description": description,
+                        "execution_time": execution_time,
+                        "quality": "low",
+                        "timestamp": datetime.now().isoformat(),
+                        "source_url": source_url,
+                        "source_type": "external_api",
+                        "status": "failed_low_quality"
+                    }
+                }
                 
         except Exception as e:
             execution_time = round(time.time() - start_time, 2)
             print(f"    ❌ {scraper_name} failed after {execution_time}s: {str(e)}")
             scraped_data["scrapers_failed"] += 1
-            return {"error": str(e), "scraper": scraper_name}
+            return {
+                "error": str(e), 
+                "scraper": scraper_name,
+                "_scraper_metadata": {
+                    "scraper_name": scraper_name,
+                    "description": description,
+                    "execution_time": execution_time,
+                    "quality": "failed",
+                    "timestamp": datetime.now().isoformat(),
+                    "source_url": source_url,
+                    "source_type": "external_api",
+                    "status": "failed_exception",
+                    "error_type": type(e).__name__
+                }
+            }
     
-    # 🎯 PHASE 1: CRITICAL FOUNDATION SCRAPERS
-    print(f"📊 PHASE 1: CRITICAL FOUNDATION SCRAPERS")
+    # 🎯 DEFINE ALL SCRAPERS WITH SOURCE INFORMATION
+    print(f"📋 PREPARING ALL SCRAPERS FOR SEQUENTIAL EXECUTION...")
+    
+    all_scrapers = []
+    
+    # Phase 1: Foundation Scrapers
     foundation_scrapers = [
-        ("https_check", check_https, "SSL/HTTPS security verification"),
-        ("whois_data", get_whois_data, "Domain registration and ownership"),
-        ("privacy_terms", check_privacy_term, "Legal documentation compliance"),
+        ("https_check", check_https, "SSL/HTTPS security verification", f"https://{domain}"),
+        ("whois_data", get_whois_data, "Domain registration and ownership", f"whois://{domain}"),
+        ("privacy_terms", check_privacy_term, "Legal documentation compliance", f"https://{domain}/privacy"),
     ]
+    all_scrapers.extend(foundation_scrapers)
     
-    for scraper_name, scraper_func, description in foundation_scrapers:
-        scraped_data[scraper_name] = run_scraper_with_amazing_quality(
-            scraper_name, scraper_func, description, 25
-        )
-        time.sleep(3)  # Quality delay between scrapers
-    
-    # 🎯 PHASE 2: COMPLIANCE & SECURITY SCRAPERS
-    print(f"📊 PHASE 2: COMPLIANCE & SECURITY SCRAPERS")
+    # Phase 2: Security Scrapers
     security_scrapers = [
-        ("google_safe_browsing", scrape_google_safe_browsing, "Security reputation analysis"),
-        ("ssl_org_report", scrape_ssl_org, "SSL security grade assessment"),
-        ("ipvoid", scrape_ipvoid, "IP reputation and geolocation"),
+        ("google_safe_browsing", scrape_google_safe_browsing, "Security reputation analysis", f"https://transparencyreport.google.com/safe-browsing/search?url={domain}"),
+        ("ssl_org_report", scrape_ssl_org, "SSL security grade assessment", f"https://www.ssllabs.com/ssltest/analyze.html?d={domain}"),
+        ("ipvoid", scrape_ipvoid, "IP reputation and geolocation", f"https://www.ipvoid.com/ip-blacklist-check/"),
     ]
+    all_scrapers.extend(security_scrapers)
     
-    # Add OFAC if available (CRITICAL for compliance)
+    # Add OFAC if available
     if OFAC_AVAILABLE:
         company_name = extract_company_name_from_domain(domain)
-        security_scrapers.append(("ofac_sanctions", lambda d: check_ofac_sanctions(company_name, d), "OFAC sanctions screening"))
+        security_scrapers.append(("ofac_sanctions", lambda d: check_ofac_sanctions(company_name, d), "OFAC sanctions screening", "https://sanctionssearch.ofac.treas.gov/"))
         print(f"   💼 Including OFAC sanctions screening for: {company_name}")
+        all_scrapers.append(("ofac_sanctions", lambda d: check_ofac_sanctions(company_name, d), "OFAC sanctions screening", "https://sanctionssearch.ofac.treas.gov/"))
     
-    for scraper_name, scraper_func, description in security_scrapers:
-        scraped_data[scraper_name] = run_scraper_with_amazing_quality(
-            scraper_name, scraper_func, description, 30
-        )
-        time.sleep(3)  # Quality delay between scrapers
-    
-    # 🎯 PHASE 3: BUSINESS INTELLIGENCE SCRAPERS
-    print(f"📊 PHASE 3: BUSINESS INTELLIGENCE SCRAPERS")
+    # Phase 3: Business Intelligence Scrapers
     business_scrapers = [
-        ("social_presence", check_social_presence, "LinkedIn and social media analysis"),
-        ("tranco_ranking", scrape_tranco_list, "Website traffic and ranking"),
+        ("social_presence", check_social_presence, "LinkedIn and social media analysis", f"https://www.linkedin.com/company/{domain.split('.')[0]}"),
+        ("tranco_ranking", scrape_tranco_list, "Website traffic and ranking", "https://tranco-list.eu/"),
     ]
+    all_scrapers.extend(business_scrapers)
     
-    for scraper_name, scraper_func, description in business_scrapers:
-        scraped_data[scraper_name] = run_scraper_with_amazing_quality(
-            scraper_name, scraper_func, description, 25
+    # 🚀 EXECUTE ALL SCRAPERS SEQUENTIALLY
+    print(f"🔄 EXECUTING {len(all_scrapers)} SCRAPERS SEQUENTIALLY...")
+    print(f"⏳ Waiting for ALL scrapers to complete before AI analysis...")
+    
+    for i, (scraper_name, scraper_func, description, source_url) in enumerate(all_scrapers, 1):
+        print(f"📊 [{i}/{len(all_scrapers)}] Processing {scraper_name}...")
+        scraped_data[scraper_name] = run_scraper_with_source_info(
+            scraper_name, scraper_func, description, source_url, 30
         )
-        time.sleep(3)  # Quality delay between scrapers
+        time.sleep(2)  # Brief delay between scrapers
     
-    # 🎯 PHASE 4: INDUSTRY CLASSIFICATION (AI-POWERED)
-    print(f"📊 PHASE 4: AI-POWERED INDUSTRY CLASSIFICATION")
+    # 🎯 PHASE 4: INDUSTRY CLASSIFICATION (AI-POWERED) - AFTER ALL SCRAPERS
+    print(f"🤖 FINAL PHASE: AI-POWERED INDUSTRY CLASSIFICATION")
+    print(f"📊 All scrapers completed. Now running industry classification...")
+    
     try:
         scraped_data["scrapers_attempted"] += 1
         print(f"  🤖 Running industry_classification: AI-powered business categorization")
@@ -257,24 +291,74 @@ def collect_amazing_data(domain: str) -> Dict:
         website_content = extract_text_from_url(website_url)
         
         if website_content and not website_content.startswith("Failed"):
-            mcc_result = classify_mcc_using_gemini(domain, website_content[:1500])  # More content for better classification
+            mcc_result = classify_mcc_using_gemini(domain, website_content[:1500])
             
             if mcc_result:
+                # Add source metadata to industry classification
+                mcc_result["_scraper_metadata"] = {
+                    "scraper_name": "industry_classification",
+                    "description": "AI-powered business categorization",
+                    "execution_time": 0,  # Will be updated
+                    "quality": "high",
+                    "timestamp": datetime.now().isoformat(),
+                    "source_url": website_url,
+                    "source_type": "ai_analysis",
+                    "data_freshness": "real_time",
+                    "confidence": mcc_result.get('confidence', 0.5)
+                }
+                
                 scraped_data["industry_classification"] = mcc_result
                 scraped_data["scrapers_successful"] += 1
                 print(f"    ✅ Industry classification completed successfully")
                 print(f"      🏭 Industry: {mcc_result.get('industry_category', 'Unknown')}")
                 print(f"      🎯 Confidence: {mcc_result.get('confidence', 0)}")
             else:
-                scraped_data["industry_classification"] = {"error": "Classification failed"}
+                scraped_data["industry_classification"] = {
+                    "error": "Classification failed",
+                    "_scraper_metadata": {
+                        "scraper_name": "industry_classification",
+                        "description": "AI-powered business categorization",
+                        "execution_time": 0,
+                        "quality": "failed",
+                        "timestamp": datetime.now().isoformat(),
+                        "source_url": website_url,
+                        "source_type": "ai_analysis",
+                        "status": "failed_classification"
+                    }
+                }
                 scraped_data["scrapers_failed"] += 1
         else:
-            scraped_data["industry_classification"] = {"error": "Failed to extract website content"}
+            scraped_data["industry_classification"] = {
+                "error": "Failed to extract website content",
+                "_scraper_metadata": {
+                    "scraper_name": "industry_classification",
+                    "description": "AI-powered business categorization",
+                    "execution_time": 0,
+                    "quality": "failed",
+                    "timestamp": datetime.now().isoformat(),
+                    "source_url": website_url,
+                    "source_type": "ai_analysis",
+                    "status": "failed_content_extraction"
+                }
+            }
             scraped_data["scrapers_failed"] += 1
             
     except Exception as e:
         print(f"    ❌ Industry classification failed: {e}")
-        scraped_data["industry_classification"] = {"error": str(e)}
+        scraped_data["industry_classification"] = {
+            "error": str(e),
+            "_scraper_metadata": {
+                "scraper_name": "industry_classification",
+                "description": "AI-powered business categorization",
+                "execution_time": 0,
+                "quality": "failed",
+                "timestamp": datetime.now().isoformat(),
+                "source_url": f"https://{domain}",
+                "source_type": "ai_analysis",
+                "status": "failed_exception",
+                "error_type": type(e).__name__
+            }
+        }
         scraped_data["scrapers_failed"] += 1
     
     # 🎯 FINAL SUMMARY & QUALITY ASSESSMENT
@@ -283,14 +367,15 @@ def collect_amazing_data(domain: str) -> Dict:
     failed_scrapers = scraped_data["scrapers_failed"]
     success_rate = (successful_scrapers / max(total_scrapers, 1)) * 100
     
-    print(f"✅ AMAZING DATA COLLECTION COMPLETED:")
+    print(f"✅ SEQUENTIAL AMAZING DATA COLLECTION COMPLETED:")
     print(f"   📊 Total scrapers attempted: {total_scrapers}")
     print(f"   ✅ Successful: {successful_scrapers}")
     print(f"   ❌ Failed: {failed_scrapers}")
     print(f"   📈 Success rate: {success_rate:.1f}%")
     print(f"   🏆 Quality level: {'EXCELLENT' if success_rate >= 80 else 'GOOD' if success_rate >= 60 else 'ACCEPTABLE'}")
+    print(f"   🔄 Execution mode: Sequential (all scrapers completed before AI analysis)")
     
-    # Add quality metadata
+    # Add enhanced quality metadata
     scraped_data["collection_summary"] = {
         "total_scrapers": total_scrapers,
         "successful_scrapers": successful_scrapers,
@@ -299,7 +384,10 @@ def collect_amazing_data(domain: str) -> Dict:
         "quality_level": "EXCELLENT" if success_rate >= 80 else "GOOD" if success_rate >= 60 else "ACCEPTABLE",
         "collection_time": datetime.now().isoformat(),
         "ofac_included": OFAC_AVAILABLE,
-        "scrapers_list": list(scraped_data.keys())
+        "scrapers_list": list(scraped_data.keys()),
+        "execution_mode": "sequential_complete",
+        "all_scrapers_completed": True,
+        "ready_for_ai_analysis": True
     }
     
     return scraped_data
