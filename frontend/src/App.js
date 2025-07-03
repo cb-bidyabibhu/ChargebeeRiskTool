@@ -6,12 +6,75 @@ import {
   Globe, DollarSign, Lock, Building, Scale, RefreshCw, ExternalLink,
   Home, ChevronRight, Mail, Bell, ChevronDown, ChevronUp, Info,
   Zap, ShieldCheck, Trash2, FileDown, CheckSquare, Square,
-  Edit3, Copy, Share2, UserPlus, ArrowLeft
+  Edit3, Copy, Share2, UserPlus, ArrowLeft, X
 } from 'lucide-react';
 
 // Import the API service
 import apiService from './services/api';
 import ConnectionStatus from './components/ConnectionStatus';
+
+// Simple Toast Notification System
+const ToastContext = React.createContext();
+
+const ToastProvider = ({ children }) => {
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'info', duration = 5000) => {
+    const id = Date.now() + Math.random();
+    const newToast = { id, message, type, duration };
+    setToasts(prev => [...prev, newToast]);
+    
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  };
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  };
+
+  return (
+    <ToastContext.Provider value={{ addToast, removeToast }}>
+      {children}
+      {/* Toast Container */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`flex items-center justify-between p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+              toast.type === 'success' ? 'bg-green-500 text-white' :
+              toast.type === 'error' ? 'bg-red-500 text-white' :
+              toast.type === 'warning' ? 'bg-yellow-500 text-white' :
+              'bg-blue-500 text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {toast.type === 'success' && <CheckCircle className="w-4 h-4" />}
+              {toast.type === 'error' && <XCircle className="w-4 h-4" />}
+              {toast.type === 'warning' && <AlertTriangle className="w-4 h-4" />}
+              {toast.type === 'info' && <Info className="w-4 h-4" />}
+              <span className="text-sm font-medium">{toast.message}</span>
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="ml-2 text-white hover:text-gray-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+};
+
+const useToast = () => {
+  const context = React.useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
+};
 
 // Safe helper functions to prevent crashes
 const safeGetCompanyName = (assessment) => {
@@ -43,11 +106,78 @@ const safeGetBusinessDomain = (assessment) => {
   return 'unknown-domain.com';
 };
 
+// Assessment Status Helper
+const getAssessmentStatus = (assessment) => {
+  if (assessment?.status) return assessment.status;
+  if (assessment?.risk_assessment_data) return 'completed';
+  return 'unknown';
+};
+
+const getStatusBadgeColor = (status) => {
+  switch (status) {
+    case 'processing': return 'bg-blue-100 text-blue-800';
+    case 'completed': return 'bg-green-100 text-green-800';
+    case 'failed': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getStatusIcon = (status) => {
+  switch (status) {
+    case 'processing': return <RefreshCw className="w-4 h-4 animate-spin" />;
+    case 'completed': return <CheckCircle className="w-4 h-4" />;
+    case 'failed': return <XCircle className="w-4 h-4" />;
+    default: return <Clock className="w-4 h-4" />;
+  }
+};
+
+// Copy to clipboard utility
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    // Toast will be shown by the calling component
+  }).catch(err => {
+    console.error('Failed to copy: ', err);
+  });
+};
+
 // Mock user for demonstration
 const mockUser = {
   email: 'bidya.bibhu@chargebee.com',
   name: 'Bidya Sharma',
   role: 'Risk Analyst'
+};
+
+// Enhanced Assessment State Management
+const useAssessmentState = () => {
+  const [inProgressAssessments, setInProgressAssessments] = useState(new Set());
+  const [assessmentProgress, setAssessmentProgress] = useState({});
+  
+  const addInProgressAssessment = (assessmentId) => {
+    setInProgressAssessments(prev => new Set([...prev, assessmentId]));
+  };
+  
+  const removeInProgressAssessment = (assessmentId) => {
+    setInProgressAssessments(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(assessmentId);
+      return newSet;
+    });
+  };
+  
+  const updateProgress = (assessmentId, progress) => {
+    setAssessmentProgress(prev => ({
+      ...prev,
+      [assessmentId]: progress
+    }));
+  };
+  
+  return {
+    inProgressAssessments,
+    assessmentProgress,
+    addInProgressAssessment,
+    removeInProgressAssessment,
+    updateProgress
+  };
 };
 
 // Utility functions for export
@@ -459,11 +589,62 @@ const ChargebeeStyleDashboard = () => {
   // NEW: Progress tracking state
   const [assessmentProgress, setAssessmentProgress] = useState(null);
   const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
+  const [showProcessingMessage, setShowProcessingMessage] = useState(false);
+  
+  // Enhanced state management
+  const {
+    inProgressAssessments,
+    assessmentProgress: globalProgress,
+    addInProgressAssessment,
+    removeInProgressAssessment,
+    updateProgress
+  } = useAssessmentState();
+  
+  const { addToast } = useToast();
 
   // Load data on component mount
   useEffect(() => {
     loadRecentAssessments();
+    
+    // Check for persisted assessment on mount
+    const persistedAssessmentId = localStorage.getItem('currentAssessmentId');
+    const persistedDomain = localStorage.getItem('currentAssessmentDomain');
+    
+    if (persistedAssessmentId && persistedDomain) {
+      setCurrentAssessmentId(persistedAssessmentId);
+      setShowProcessingMessage(true);
+      addInProgressAssessment(persistedAssessmentId);
+      addToast(`Resuming assessment for ${persistedDomain}`, 'info');
+    }
   }, []);
+  
+  // Auto-poll in-progress assessments
+  useEffect(() => {
+    if (inProgressAssessments.size === 0) return;
+    
+    const pollInterval = setInterval(async () => {
+      for (const assessmentId of inProgressAssessments) {
+        try {
+          const progress = await apiService.getAssessmentProgress(assessmentId);
+          updateProgress(assessmentId, progress);
+          
+          if (progress.status === 'completed') {
+            const result = await apiService.getAssessmentResult(assessmentId);
+            removeInProgressAssessment(assessmentId);
+            addToast(`Assessment ${assessmentId} completed!`, 'success');
+            loadRecentAssessments();
+          } else if (progress.status === 'failed') {
+            removeInProgressAssessment(assessmentId);
+            addToast(`Assessment ${assessmentId} failed: ${progress.error || 'Unknown error'}`, 'error');
+          }
+        } catch (error) {
+          console.error(`Failed to poll assessment ${assessmentId}:`, error);
+        }
+      }
+    }, 10000); // Poll every 10 seconds
+    
+    return () => clearInterval(pollInterval);
+  }, [inProgressAssessments]);
 
   // Load recent assessments
   const loadRecentAssessments = async () => {
@@ -479,33 +660,101 @@ const ChargebeeStyleDashboard = () => {
   // FIXED: Handle NEW assessment with progress tracking
   const handleStartAssessment = async () => {
     if (!domainInput.trim()) return;
-    
     setIsAssessing(true);
-    setAssessmentProgress(null);
+    setAssessmentProgress({ status: 'processing', progress: 0, current_step: 'Starting assessment...' });
     setCurrentAssessment(null);
-    
+    setShowProcessingMessage(false);
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
-      
-      // Start single assessment (no more enhanced/standard complexity)
-      const assessmentResult = await apiService.createAssessment(domainInput);
-      
-      // Show the result immediately
-      setCurrentAssessment(assessmentResult);
+      // Start async assessment, get assessment_id
+      const response = await apiService.createAssessment(domainInput);
+      const assessmentId = response.assessment_id;
+      setCurrentAssessmentId(assessmentId);
+      addInProgressAssessment(assessmentId);
+      addToast(`Assessment started for ${domainInput}`, 'info');
       setDomainInput('');
+      setShowProcessingMessage(true);
       
-      console.log('✅ Assessment completed successfully!');
+      // Save to localStorage for persistence
+      localStorage.setItem('currentAssessmentId', assessmentId);
+      localStorage.setItem('currentAssessmentDomain', domainInput);
       
-      // Refresh recent assessments list
-      setTimeout(loadRecentAssessments, 1000);
-      
+      // Poll for progress
+      const poll = async () => {
+        try {
+          const result = await apiService.pollAssessmentUntilComplete(
+            assessmentId,
+            (progress) => {
+              setAssessmentProgress(progress);
+              updateProgress(assessmentId, progress);
+            }
+          );
+          setCurrentAssessment(result.result);
+          setAssessmentProgress(null);
+          setShowProcessingMessage(false);
+          removeInProgressAssessment(assessmentId);
+          addToast(`Assessment completed for ${domainInput}`, 'success');
+          localStorage.removeItem('currentAssessmentId');
+          localStorage.removeItem('currentAssessmentDomain');
+          setTimeout(loadRecentAssessments, 1000);
+        } catch (error) {
+          setAssessmentProgress(null);
+          setShowProcessingMessage(false);
+          removeInProgressAssessment(assessmentId);
+          addToast(`Assessment failed for ${domainInput}: ${error.message}`, 'error');
+          localStorage.removeItem('currentAssessmentId');
+          localStorage.removeItem('currentAssessmentDomain');
+          alert(`Assessment failed: ${error.message}`);
+        } finally {
+          setIsAssessing(false);
+          setCurrentAssessmentId(null);
+        }
+      };
+      poll();
     } catch (error) {
-      console.error('Failed to start assessment:', error);
-      alert(`New assessment failed: ${error.message}`);
+      setIsAssessing(false);
       setAssessmentProgress(null);
+      setCurrentAssessmentId(null);
+      setShowProcessingMessage(false);
+      addToast(`Failed to start assessment: ${error.message}`, 'error');
+      alert(`New assessment failed: ${error.message}`);
+    }
+  };
+
+  // New: Manual check status by assessment ID
+  const handleCheckStatus = async () => {
+    if (!currentAssessmentId) {
+      addToast('No assessment in progress.', 'warning');
+      return;
+    }
+    setIsAssessing(true);
+    try {
+      const progress = await apiService.getAssessmentProgress(currentAssessmentId);
+      setAssessmentProgress(progress);
+      updateProgress(currentAssessmentId, progress);
+      
+      if (progress.status === 'completed') {
+        const result = await apiService.getAssessmentResult(currentAssessmentId);
+        setCurrentAssessment(result.result);
+        setAssessmentProgress(null);
+        setCurrentAssessmentId(null);
+        removeInProgressAssessment(currentAssessmentId);
+        addToast('Assessment completed!', 'success');
+        localStorage.removeItem('currentAssessmentId');
+        localStorage.removeItem('currentAssessmentDomain');
+        setTimeout(loadRecentAssessments, 1000);
+      } else if (progress.status === 'failed') {
+        addToast(`Assessment failed: ${progress.error || 'Unknown error'}`, 'error');
+        setAssessmentProgress(null);
+        setCurrentAssessmentId(null);
+        removeInProgressAssessment(currentAssessmentId);
+        localStorage.removeItem('currentAssessmentId');
+        localStorage.removeItem('currentAssessmentDomain');
+      }
+    } catch (error) {
+      addToast(`Failed to check assessment status: ${error.message}`, 'error');
     } finally {
       setIsAssessing(false);
-      setCurrentAssessmentId(null);
     }
   };
 
@@ -593,6 +842,55 @@ const ChargebeeStyleDashboard = () => {
         <div className="mb-6">
           <ConnectionStatus />
         </div>
+        {showProcessingMessage && currentAssessmentId && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 flex flex-col items-start">
+            <div className="font-semibold mb-1">Assessment is processing...</div>
+            <div className="text-xs mb-2 flex items-center space-x-2">
+              <span>Assessment ID: <span className="font-mono">{currentAssessmentId}</span></span>
+              <button
+                onClick={() => {
+                  copyToClipboard(currentAssessmentId);
+                  addToast('Assessment ID copied to clipboard!', 'success');
+                }}
+                className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                title="Copy Assessment ID"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="text-xs mb-2">You can check the status later from the dashboard or by clicking below.</div>
+            <div className="flex space-x-2">
+              <button
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                onClick={handleCheckStatus}
+                disabled={isAssessing}
+              >
+                {isAssessing ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  'Check Status'
+                )}
+              </button>
+              <button
+                className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                onClick={() => {
+                  setShowProcessingMessage(false);
+                  setCurrentAssessmentId(null);
+                  localStorage.removeItem('currentAssessmentId');
+                  localStorage.removeItem('currentAssessmentDomain');
+                  addToast('Assessment tracking cleared', 'info');
+                }}
+                title="Clear this notification"
+              >
+                Dismiss
+              </button>
+            </div>
+            <div className="text-xs mt-2 text-gray-500">Note: If the server was sleeping, this may take a few minutes to start. You can safely leave and check back later.</div>
+          </div>
+        )}
 
         {/* Main Content Grid - 2 columns, left column with 2 rows */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
@@ -720,8 +1018,12 @@ const ChargebeeStyleDashboard = () => {
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">Recent Assessments</h3>
                   <button 
-                    onClick={loadRecentAssessments}
-                    className="text-blue-600 hover:text-blue-700 p-1 rounded"
+                    onClick={() => {
+                      loadRecentAssessments();
+                      addToast('Refreshing assessments...', 'info');
+                    }}
+                    className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
+                    title="Refresh assessments"
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>
@@ -736,28 +1038,64 @@ const ChargebeeStyleDashboard = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {recentAssessments.map((assessment, index) => (
-                      <div 
-                        key={assessment.id || index}
-                        onClick={() => selectAssessment(assessment)}
-                        className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-gray-900 truncate">
-                            {safeGetCompanyName(assessment)}
-                          </h4>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRiskBadgeColor(assessment.risk_assessment_data?.risk_level)}`}>
-                            {assessment.risk_assessment_data?.risk_level || 'Medium'}
-                          </span>
+                    {recentAssessments.map((assessment, index) => {
+                      const status = getAssessmentStatus(assessment);
+                      const isInProgress = inProgressAssessments.has(assessment.id);
+                      const progress = globalProgress[assessment.id];
+                      
+                      return (
+                        <div 
+                          key={assessment.id || index}
+                          onClick={() => selectAssessment(assessment)}
+                          className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            isInProgress ? 'bg-blue-50 border-l-4 border-blue-400' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-medium text-gray-900 truncate">
+                                {safeGetCompanyName(assessment)}
+                              </h4>
+                              {isInProgress && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                  Processing
+                                </span>
+                              )}
+                            </div>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRiskBadgeColor(assessment.risk_assessment_data?.risk_level)}`}>
+                              {assessment.risk_assessment_data?.risk_level || 'Medium'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-gray-500">
+                            <span>{new Date(assessment.created_at).toLocaleDateString()}</span>
+                            <div className="flex items-center space-x-2">
+                              {isInProgress && progress && (
+                                <span className="text-xs text-blue-600">
+                                  {progress.progress || 0}%
+                                </span>
+                              )}
+                              <span className="font-medium">
+                                {assessment.risk_assessment_data?.weighted_total_score?.toFixed(1) || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                          {isInProgress && progress && (
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-200 rounded-full h-1">
+                                <div 
+                                  className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                                  style={{ width: `${progress.progress || 0}%` }}
+                                ></div>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {progress.current_step || 'Processing...'}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between text-sm text-gray-500">
-                          <span>{new Date(assessment.created_at).toLocaleDateString()}</span>
-                          <span className="font-medium">
-                            {assessment.risk_assessment_data?.weighted_total_score?.toFixed(1) || 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -779,7 +1117,6 @@ const ChargebeeStyleDashboard = () => {
                       Analyzing {assessmentProgress.domain || 'domain'}...
                     </p>
                   </div>
-
                   {/* Progress Bar */}
                   <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
                     <div 
@@ -787,7 +1124,6 @@ const ChargebeeStyleDashboard = () => {
                       style={{ width: `${assessmentProgress.progress || 0}%` }}
                     ></div>
                   </div>
-
                   {/* Progress Details */}
                   <div className="text-center mb-6">
                     <p className="text-lg font-semibold text-gray-900 mb-2">
@@ -802,7 +1138,6 @@ const ChargebeeStyleDashboard = () => {
                       </p>
                     )}
                   </div>
-
                   {/* Status Information */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                     <div className="flex items-center space-x-2 mb-2">
@@ -813,12 +1148,37 @@ const ChargebeeStyleDashboard = () => {
                       <div>Type: Assessment</div>
                       <div>Started: {new Date(assessmentProgress.started_at).toLocaleTimeString()}</div>
                       <div>Status: {assessmentProgress.status || 'Running'}</div>
+                      {currentAssessmentId && (
+                        <div>
+                          Assessment ID: <span className="font-mono text-xs text-blue-900">{currentAssessmentId}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-
                   <div className="mt-6 text-sm text-gray-500">
                     <Clock className="w-4 h-4 inline mr-1" />
-                    This typically takes 3-5 minutes to complete
+                    This typically takes 3-5 minutes to complete. You can close this page and check the result later using the Assessment ID above.
+                  </div>
+                  {/* Check Status Later UI */}
+                  <div className="mt-6 flex flex-col items-center">
+                    <label className="text-xs text-gray-700 mb-1">Check status by Assessment ID:</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={currentAssessmentId || ''}
+                        onChange={e => setCurrentAssessmentId(e.target.value)}
+                        className="border border-gray-300 rounded px-2 py-1 text-xs w-64"
+                        placeholder="Paste Assessment ID here"
+                        disabled={isAssessing}
+                      />
+                      <button
+                        onClick={handleCheckStatus}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium disabled:opacity-50"
+                        disabled={!currentAssessmentId || isAssessing}
+                      >
+                        Check Status
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -843,13 +1203,26 @@ const ChargebeeStyleDashboard = () => {
                         </p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => generatePDFReport(currentAssessment)}
-                      className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Export PDF</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => {
+                          copyToClipboard(currentAssessment.id);
+                          addToast('Assessment ID copied to clipboard!', 'success');
+                        }}
+                        className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        title="Copy Assessment ID"
+                      >
+                        <Copy className="w-4 h-4" />
+                        <span className="text-xs">Copy ID</span>
+                      </button>
+                      <button 
+                        onClick={() => generatePDFReport(currentAssessment)}
+                        className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Export PDF</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Risk Score Display */}
@@ -903,11 +1276,11 @@ const ChargebeeStyleDashboard = () => {
                       >
                         <div className="flex items-center space-x-4">
                           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getRiskBgColor(categoryData.average_score)}`}>
-                            {categoryKey === 'reputation_risk' && <TrendingUp className={`w-6 h-6 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'financial_risk' && <DollarSign className={`w-6 h-6 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'technology_risk' && <Lock className={`w-6 h-6 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'business_risk' && <Building className={`w-6 h-6 ${getRiskColor(categoryData.average_score)}`} />}
-                            {categoryKey === 'legal_compliance_risk' && <Scale className={`w-6 h-6 ${getRiskColor(categoryData.average_score)}`} />}
+                            {categoryKey === 'reputation_risk' && <TrendingUp className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            {categoryKey === 'financial_risk' && <DollarSign className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            {categoryKey === 'technology_risk' && <Lock className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            {categoryKey === 'business_risk' && <Building className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
+                            {categoryKey === 'legal_compliance_risk' && <Scale className={`w-5 h-5 ${getRiskColor(categoryData.average_score)}`} />}
                           </div>
                           <div>
                             <h3 className="text-lg font-semibold text-gray-900">
@@ -933,14 +1306,14 @@ const ChargebeeStyleDashboard = () => {
                         <div className="px-6 pb-6 border-t border-gray-100">
                           <div className="space-y-4 mt-4">
                             {categoryData.checks?.map((check, index) => (
-                              <div key={index} className="bg-gray-50 rounded-lg p-4">
+                              <div key={index} className="bg-gray-50 rounded-lg p-3">
                                 <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-semibold text-gray-900">{check.check_name}</h4>
-                                  <div className={`px-2 py-1 rounded text-sm font-medium ${getRiskBgColor(check.score)} ${getRiskColor(check.score)}`}>
-                                    {check.score}/10
-                                  </div>
+                                  <h5 className="font-medium text-gray-900">{check.check_name}</h5>
+                                  <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskBgColor(check.score)} ${getRiskColor(check.score)}`}>
+                                      {check.score}/10
+                                  </span>
                                 </div>
-                                <p className="text-sm text-gray-600 mb-2">{check.reason}</p>
+                                <p className="text-sm text-gray-600">{check.reason}</p>
                                 {check.insight && (
                                   <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded border-l-4 border-blue-200">
                                     <Info className="w-4 h-4 inline mr-1" />
@@ -1344,6 +1717,9 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                 Score
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Date
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1411,11 +1787,28 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                     </div>
                   </div>
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(getAssessmentStatus(assessment))}`}>
+                    {getStatusIcon(getAssessmentStatus(assessment))}
+                    <span className="ml-1">{getAssessmentStatus(assessment)}</span>
+                  </span>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(assessment.created_at).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(assessment.id);
+                        addToast('Assessment ID copied to clipboard!', 'success');
+                      }}
+                      className="text-gray-600 hover:text-gray-900 p-1 rounded"
+                      title="Copy Assessment ID"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1436,6 +1829,38 @@ const AssessmentListView = ({ assessments, onSelectAssessment, onDeleteAssessmen
                     >
                       <Eye className="w-4 h-4" />
                     </button>
+                    {getAssessmentStatus(assessment) === 'processing' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Set this as the current assessment to check status
+                          setCurrentAssessmentId(assessment.id);
+                          setShowProcessingMessage(true);
+                          addInProgressAssessment(assessment.id);
+                          addToast(`Checking status for ${safeGetCompanyName(assessment)}`, 'info');
+                        }}
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded"
+                        title="Check Status"
+                      >
+                        <Activity className="w-4 h-4" />
+                      </button>
+                    )}
+                    {getAssessmentStatus(assessment) === 'failed' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const confirmed = window.confirm(`Retry assessment for ${safeGetCompanyName(assessment)}?`);
+                          if (confirmed) {
+                            // TODO: Implement retry logic when backend supports it
+                            addToast('Retry functionality coming soon!', 'info');
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded"
+                        title="Retry Assessment"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2457,15 +2882,17 @@ const App = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      <Header user={user} onLogout={handleLogout} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-        <main className="flex-1 overflow-auto">
-          {renderCurrentPage()}
-        </main>
+    <ToastProvider>
+      <div className="h-screen flex flex-col bg-gray-50">
+        <Header user={user} onLogout={handleLogout} />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
+          <main className="flex-1 overflow-auto">
+            {renderCurrentPage()}
+          </main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 };
 

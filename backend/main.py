@@ -15,6 +15,7 @@ import uvicorn
 from io import StringIO
 import csv
 from auth_routes import router as auth_router
+import uuid
 
 # Import from MASTER risk assessment file
 from risk_assessment import (
@@ -324,77 +325,83 @@ async def health_check():
             services={"error": str(e)}
         )
 
-# 🚀 THE SINGLE AMAZING ASSESSMENT ENDPOINT
+# In-memory progress tracking (for demo; use Redis in prod)
+assessment_progress = {}
+
 @app.post("/assessment/{input_value}", response_model=AssessmentResponse)
-async def create_amazing_assessment(input_value: str):
+async def create_amazing_assessment(input_value: str, background_tasks: BackgroundTasks):
     """
-    🚀 THE SINGLE AMAZING ASSESSMENT ENDPOINT
-    - Handles both domains and company names automatically
-    - Always uses the BEST quality assessment (AI + All Scrapers + 2025 Compliance)
-    - 60-90 seconds for maximum data collection
-    - Stores once in database
-    - Returns complete assessment with all scraped data
+    Async assessment creation: returns assessment_id and status immediately, runs assessment in background.
     """
+    assessment_id = str(uuid.uuid4())
+    assessment_progress[assessment_id] = {
+        "assessment_id": assessment_id,
+        "input": input_value,
+        "status": "processing",
+        "progress": 0,
+        "started_at": datetime.now().isoformat(),
+        "result": None
+    }
+    background_tasks.add_task(run_amazing_assessment, assessment_id, input_value)
+    return AssessmentResponse(
+        success=True,
+        message="Assessment started and processing in background.",
+        assessment_id=assessment_id,
+        data={"status": "processing"}
+    )
+
+async def run_amazing_assessment(assessment_id: str, input_value: str):
     import time
     start_time = time.time()
-    
     try:
-        # Validate and clean input
         cleaned_input = validate_input(input_value)
-        
-        # Determine if input is domain or company name
         is_domain = "." in cleaned_input and not cleaned_input.startswith("http")
-        
         if is_domain:
             domain = cleaned_input
             company_name = extract_company_name_from_domain(domain)
         else:
             company_name = cleaned_input
             domain = f"{company_name.lower().replace(' ', '').replace(',', '').replace('.', '')}.com"
-        
-        print(f"🚀 STARTING SINGLE AMAZING ASSESSMENT")
-        print(f"   📍 Input: {input_value}")
-        print(f"   🏢 Company: {company_name}")
-        print(f"   🌐 Domain: {domain}")
-        print(f"   ⏱️ Expected time: 60-90 seconds for maximum quality")
-        
-        # Always use the BEST assessment (enhanced with all scrapers)
+        assessment_progress[assessment_id]["status"] = "running"
+        assessment_progress[assessment_id]["progress"] = 10
         result = get_enhanced_risk_assessment(domain)
-        
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-        
-        # Get assessment ID (already stored by get_enhanced_risk_assessment)
-        assessment_id = result.get("assessment_id")
-        
-        processing_time = time.time() - start_time
-        
-        print(f"✅ AMAZING ASSESSMENT COMPLETED")
-        print(f"   ⏱️ Processing time: {processing_time:.1f} seconds")
-        print(f"   📊 Data sources: {result.get('metadata', {}).get('data_sources_count', 0)}")
-        print(f"   🎯 Success rate: {result.get('metadata', {}).get('data_collection_success_rate', 0)}%")
-        print(f"   💾 Stored with ID: {assessment_id}")
-        
-        log_api_request("amazing-assessment", input_value, processing_time, "success")
-        
-        return AssessmentResponse(
-            success=True,
-            message=f"Amazing assessment completed for {company_name}",
-            assessment_id=assessment_id,
-            data=result
-        )
-        
-    except HTTPException:
-        raise
+        assessment_progress[assessment_id]["progress"] = 100
+        assessment_progress[assessment_id]["status"] = "completed"
+        assessment_progress[assessment_id]["result"] = result
+        assessment_progress[assessment_id]["completed_at"] = datetime.now().isoformat()
     except Exception as e:
-        processing_time = time.time() - start_time
-        print(f"❌ Amazing assessment failed after {processing_time:.1f}s: {e}")
-        
-        if UTILS_AVAILABLE:
-            log_assessment_error(e, input_value, "amazing")
-        
-        log_api_request("amazing-assessment", input_value, processing_time, "failed")
-        raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
+        assessment_progress[assessment_id]["status"] = "failed"
+        assessment_progress[assessment_id]["error"] = str(e)
+        assessment_progress[assessment_id]["progress"] = 0
+        assessment_progress[assessment_id]["failed_at"] = datetime.now().isoformat()
+
+@app.get("/assessment/progress/{assessment_id}")
+async def get_assessment_progress(assessment_id: str):
+    if assessment_id not in assessment_progress:
+        raise HTTPException(status_code=404, detail="Assessment ID not found")
+    progress = assessment_progress[assessment_id]
+    return {
+        "assessment_id": assessment_id,
+        "status": progress["status"],
+        "progress": progress["progress"],
+        "started_at": progress["started_at"],
+        "completed_at": progress.get("completed_at"),
+        "error": progress.get("error")
+    }
+
+@app.get("/assessment/result/{assessment_id}")
+async def get_assessment_result(assessment_id: str):
+    if assessment_id not in assessment_progress:
+        raise HTTPException(status_code=404, detail="Assessment ID not found")
+    progress = assessment_progress[assessment_id]
+    if progress["status"] != "completed":
+        raise HTTPException(status_code=400, detail=f"Assessment not completed. Status: {progress['status']}")
+    return {
+        "assessment_id": assessment_id,
+        "status": progress["status"],
+        "result": progress["result"],
+        "completed_at": progress.get("completed_at")
+    }
 
 # --- DATA RETRIEVAL ENDPOINTS ---
 
