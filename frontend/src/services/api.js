@@ -200,6 +200,70 @@ class APIService {
     }
   }
 
+  // NEW: Create assessment with progress tracking
+  async createAssessmentWithProgress(domain, assessmentType = 'enhanced') {
+    try {
+      return await this.makeRequest(`/api/v1/assessment/domain/${domain}?assessment_type=${assessmentType}`, {
+        method: 'POST'
+      });
+    } catch (error) {
+      console.error('Failed to create assessment with progress:', error);
+      throw new Error('Unable to create assessment.');
+    }
+  }
+
+  // NEW: Get assessment progress
+  async getAssessmentProgress(assessmentId) {
+    try {
+      return await this.makeRequest(`/api/v1/assessment/progress/${assessmentId}`);
+    } catch (error) {
+      console.error('Failed to get assessment progress:', error);
+      throw new Error('Unable to get assessment progress.');
+    }
+  }
+
+  // NEW: Get assessment result
+  async getAssessmentResult(assessmentId) {
+    try {
+      return await this.makeRequest(`/api/v1/assessment/result/${assessmentId}`);
+    } catch (error) {
+      console.error('Failed to get assessment result:', error);
+      throw new Error('Unable to get assessment result.');
+    }
+  }
+
+  // NEW: Poll assessment until completion
+  async pollAssessmentUntilComplete(assessmentId, onProgressUpdate = null, maxWaitTime = 300000) {
+    const startTime = Date.now();
+    const pollInterval = 2000; // 2 seconds
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const progress = await this.getAssessmentProgress(assessmentId);
+        
+        if (onProgressUpdate) {
+          onProgressUpdate(progress);
+        }
+        
+        if (progress.status === 'completed') {
+          const result = await this.getAssessmentResult(assessmentId);
+          return result;
+        } else if (progress.status === 'failed') {
+          throw new Error(`Assessment failed: ${progress.error || 'Unknown error'}`);
+        }
+        
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        
+      } catch (error) {
+        console.error('Polling error:', error);
+        throw error;
+      }
+    }
+    
+    throw new Error('Assessment timed out after 5 minutes');
+  }
+
   async getAssessment(domain) {
     try {
       return await this.makeRequest(`/fetch-assessment/${domain}`);

@@ -456,6 +456,9 @@ const ChargebeeStyleDashboard = () => {
   const [currentAssessment, setCurrentAssessment] = useState(null);
   const [recentAssessments, setRecentAssessments] = useState([]);
   const [expandedSections, setExpandedSections] = useState({});
+  // NEW: Progress tracking state
+  const [assessmentProgress, setAssessmentProgress] = useState(null);
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(null);
 
   // Load data on component mount
   useEffect(() => {
@@ -473,21 +476,75 @@ const ChargebeeStyleDashboard = () => {
     }
   };
 
-  // FIXED: Handle NEW assessment (Create new assessment)
+  // FIXED: Handle NEW assessment with progress tracking
   const handleStartAssessment = async () => {
     if (!domainInput.trim()) return;
     
     setIsAssessing(true);
+    setAssessmentProgress(null);
+    setCurrentAssessment(null);
+    
     try {
       console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
-      const result = await apiService.createAssessment(domainInput);
-      setCurrentAssessment(result);
+      
+      // Start assessment with progress tracking (enhanced first, fallback to standard)
+      let startResult;
+      let assessmentId;
+      
+      try {
+        startResult = await apiService.createAssessmentWithProgress(domainInput, 'enhanced');
+        assessmentId = startResult.assessment_id;
+      } catch (enhancedError) {
+        console.warn('Enhanced assessment failed, falling back to standard:', enhancedError);
+        
+        // Fall back to the original direct API endpoint for standard assessment
+        try {
+          const fallbackResult = await apiService.createAssessment(domainInput);
+          // For backward compatibility, show the result immediately
+          setCurrentAssessment(fallbackResult);
+          setDomainInput('');
+          setTimeout(loadRecentAssessments, 2000);
+          return;
+        } catch (fallbackError) {
+          throw new Error(`Both enhanced and standard assessments failed: ${fallbackError.message}`);
+        }
+      }
+      
+      setCurrentAssessmentId(assessmentId);
       setDomainInput('');
-      setTimeout(loadRecentAssessments, 2000);
+      
+      // Start polling for progress and final result
+      try {
+        const finalResult = await apiService.pollAssessmentUntilComplete(
+          assessmentId,
+          // Progress callback
+          (progress) => {
+            setAssessmentProgress(progress);
+            console.log(`Progress: ${progress.progress}% - ${progress.current_step}`);
+          }
+        );
+        
+        // Assessment completed! Show the final result
+        setCurrentAssessment(finalResult.result);
+        setAssessmentProgress(null);
+        console.log('✅ Assessment completed successfully!');
+        
+        // Refresh recent assessments list
+        setTimeout(loadRecentAssessments, 1000);
+        
+      } catch (pollError) {
+        console.error('Assessment polling failed:', pollError);
+        alert(`Assessment failed: ${pollError.message}`);
+        setAssessmentProgress(null);
+      }
+      
     } catch (error) {
+      console.error('Failed to start assessment:', error);
       alert(`New assessment failed: ${error.message}`);
+      setAssessmentProgress(null);
     } finally {
       setIsAssessing(false);
+      setCurrentAssessmentId(null);
     }
   };
 
@@ -666,10 +723,17 @@ const ChargebeeStyleDashboard = () => {
                     className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center font-medium"
                   >
                     {isAssessing ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                        Running Risk Analysis...
-                      </>
+                      assessmentProgress ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                          {assessmentProgress.progress}% - {assessmentProgress.current_step}
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                          Starting Risk Analysis...
+                        </>
+                      )
                     ) : (
                       <>
                         <Search className="w-5 h-5 mr-2" />
@@ -741,7 +805,63 @@ const ChargebeeStyleDashboard = () => {
 
           {/* Right Column: Welcome or Assessment Details, full height */}
           <div className="lg:col-span-2 flex flex-col h-full min-w-0">
-            {currentAssessment ? (
+            {assessmentProgress ? (
+              /* Show progress during assessment */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                <div className="text-center">
+                  <div className="mb-6">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full mb-4">
+                      <RefreshCw className="w-10 h-10 text-white animate-spin" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Assessment in Progress</h2>
+                    <p className="text-gray-600">
+                      Analyzing {assessmentProgress.domain || 'domain'}...
+                    </p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                    <div 
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 h-3 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${assessmentProgress.progress || 0}%` }}
+                    ></div>
+                  </div>
+
+                  {/* Progress Details */}
+                  <div className="text-center mb-6">
+                    <p className="text-lg font-semibold text-gray-900 mb-2">
+                      {assessmentProgress.progress || 0}% Complete
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {assessmentProgress.current_step || 'Preparing assessment...'}
+                    </p>
+                    {assessmentProgress.runtime_seconds && (
+                      <p className="text-xs text-gray-500">
+                        Runtime: {Math.floor(assessmentProgress.runtime_seconds / 60)}m {Math.round(assessmentProgress.runtime_seconds % 60)}s
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Status Information */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Activity className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold text-blue-900">Assessment Details</span>
+                    </div>
+                    <div className="text-xs text-blue-700 space-y-1">
+                      <div>Type: {assessmentProgress.assessment_type || 'Enhanced'}</div>
+                      <div>Started: {new Date(assessmentProgress.started_at).toLocaleTimeString()}</div>
+                      <div>Status: {assessmentProgress.status || 'Running'}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 text-sm text-gray-500">
+                    <Clock className="w-4 h-4 inline mr-1" />
+                    This typically takes 3-5 minutes to complete
+                  </div>
+                </div>
+              </div>
+            ) : currentAssessment ? (
               <div className="space-y-6">
                 
                 {/* Assessment Header - FIXED THE CRASH HERE */}
