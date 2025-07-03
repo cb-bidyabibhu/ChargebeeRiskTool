@@ -605,17 +605,6 @@ const ChargebeeStyleDashboard = () => {
   // Load data on component mount
   useEffect(() => {
     loadRecentAssessments();
-    
-    // Check for persisted assessment on mount
-    const persistedAssessmentId = localStorage.getItem('currentAssessmentId');
-    const persistedDomain = localStorage.getItem('currentAssessmentDomain');
-    
-    if (persistedAssessmentId && persistedDomain) {
-      setCurrentAssessmentId(persistedAssessmentId);
-      setShowProcessingMessage(true);
-      addInProgressAssessment(persistedAssessmentId);
-      addToast(`Resuming assessment for ${persistedDomain}`, 'info');
-    }
   }, []);
   
   // Auto-poll in-progress assessments
@@ -725,51 +714,8 @@ const ChargebeeStyleDashboard = () => {
       localStorage.setItem('currentAssessmentId', assessmentId);
       localStorage.setItem('currentAssessmentDomain', domainInput);
       
-      // Poll for progress
-      const poll = async () => {
-        try {
-          const result = await apiService.pollAssessmentUntilComplete(
-            assessmentId,
-            (progress) => {
-              setAssessmentProgress(progress);
-              updateProgress(assessmentId, progress);
-            }
-          );
-          if (result && result.error) {
-            setAssessmentPollingError(result.error);
-            setAssessmentProgress(null);
-            setShowProcessingMessage(false);
-            removeInProgressAssessment(assessmentId);
-            localStorage.removeItem('currentAssessmentId');
-            localStorage.removeItem('currentAssessmentDomain');
-            setIsAssessing(false);
-            setCurrentAssessmentId(null);
-            return;
-          }
-          setCurrentAssessment(result.result);
-          setAssessmentProgress(null);
-          setShowProcessingMessage(false);
-          removeInProgressAssessment(assessmentId);
-          addToast(`Assessment completed for ${domainInput}`, 'success');
-          localStorage.removeItem('currentAssessmentId');
-          localStorage.removeItem('currentAssessmentDomain');
-          setTimeout(loadRecentAssessments, 1000);
-        } catch (error) {
-          setAssessmentProgress(null);
-          setShowProcessingMessage(false);
-          removeInProgressAssessment(assessmentId);
-          addToast(`Assessment failed for ${domainInput}: ${error.message}`, 'error');
-          localStorage.removeItem('currentAssessmentId');
-          localStorage.removeItem('currentAssessmentDomain');
-          setAssessmentPollingError(error.message);
-          setIsAssessing(false);
-          setCurrentAssessmentId(null);
-        } finally {
-          setIsAssessing(false);
-          setCurrentAssessmentId(null);
-        }
-      };
-      poll();
+      // Start polling for progress
+      pollAssessment(assessmentId, domainInput);
     } catch (error) {
       setIsAssessing(false);
       setAssessmentProgress(null);
@@ -901,6 +847,7 @@ const ChargebeeStyleDashboard = () => {
         <div className="mb-6">
           <ConnectionStatus />
         </div>
+        {/* Assessment Processing Status - Only show when actually processing */}
         {showProcessingMessage && currentAssessmentId && (
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 flex flex-col items-start">
             <div className="font-semibold mb-1">Assessment is processing...</div>
@@ -950,6 +897,96 @@ const ChargebeeStyleDashboard = () => {
             <div className="text-xs mt-2 text-gray-500">Note: If the server was sleeping, this may take a few minutes to start. You can safely leave and check back later.</div>
           </div>
         )}
+
+        {/* Risk Assessment Infographic - Show when no assessment is in progress */}
+        {!showProcessingMessage && !currentAssessment && (
+          <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Comprehensive Risk Assessment</h2>
+              <p className="text-gray-600">Get detailed insights into business risk and compliance across 5 major categories</p>
+            </div>
+            
+            {/* 5 Major Risk Categories */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Shield className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Security Risk</h3>
+                <p className="text-xs text-gray-600">SSL certificates, malware detection, security headers</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Globe className="w-5 h-5 text-yellow-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Domain Risk</h3>
+                <p className="text-xs text-gray-600">WHOIS data, domain age, registrar reputation</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Business Risk</h3>
+                <p className="text-xs text-gray-600">Company verification, legal compliance, sanctions</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Traffic Risk</h3>
+                <p className="text-xs text-gray-600">Website traffic, popularity metrics, engagement</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Content Risk</h3>
+                <p className="text-xs text-gray-600">Privacy policies, terms of service, legal compliance</p>
+              </div>
+            </div>
+            
+            {/* What You'll Get */}
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                What You'll Get
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Comprehensive risk score (1-10)</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Detailed category breakdown</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Risk level classification</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Actionable recommendations</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Exportable PDF reports</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">Historical assessment tracking</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {assessmentPollingError && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 flex flex-col items-start">
             <div className="font-semibold mb-1">Assessment could not complete</div>
@@ -960,7 +997,8 @@ const ChargebeeStyleDashboard = () => {
                 setAssessmentPollingError(null);
                 setIsAssessing(true);
                 setShowProcessingMessage(true);
-                poll();
+                const persistedDomain = localStorage.getItem('currentAssessmentDomain') || 'Unknown Domain';
+                pollAssessment(currentAssessmentId, persistedDomain);
               }}
               disabled={isAssessing}
             >
