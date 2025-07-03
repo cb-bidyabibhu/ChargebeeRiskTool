@@ -246,35 +246,42 @@ class APIService {
   }
 
   async pollAssessmentUntilComplete(assessmentId, onProgressUpdate = null, maxWaitTime = 900000) {
-    const startTime = Date.now();
-    const pollInterval = 4000;
-    let lastError = null;
-    
-    while (Date.now() - startTime < maxWaitTime) {
-      try {
-        const progress = await this.getAssessmentProgress(assessmentId);
-        if (onProgressUpdate) {
-          onProgressUpdate(progress);
+    // This method is now deprecated in favor of client-side polling
+    // Keep it for backward compatibility but make it non-blocking
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const pollInterval = 4000;
+      
+      const poll = async () => {
+        try {
+          if (Date.now() - startTime > maxWaitTime) {
+            reject(new Error('Assessment timed out'));
+            return;
+          }
+          
+          const progress = await this.getAssessmentProgress(assessmentId);
+          
+          if (onProgressUpdate) {
+            onProgressUpdate(progress);
+          }
+          
+          if (progress.status === 'completed') {
+            const result = await this.getAssessmentResult(assessmentId);
+            resolve(result);
+          } else if (progress.status === 'failed') {
+            reject(new Error(`Assessment failed: ${progress.error || 'Unknown error'}`));
+          } else {
+            // Schedule next poll without blocking
+            setTimeout(poll, pollInterval);
+          }
+          
+        } catch (error) {
+          reject(error);
         }
-        if (progress.status === 'completed') {
-          const result = await this.getAssessmentResult(assessmentId);
-          return result;
-        } else if (progress.status === 'failed') {
-          throw new Error(`Assessment failed: ${progress.error || 'Unknown error'}`);
-        }
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-      } catch (error) {
-        lastError = error;
-        console.error('Polling error:', error);
-        if (error.message && error.message.includes('timeout')) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          continue;
-        } else {
-          throw error;
-        }
-      }
-    }
-    return { result: null, error: 'The backend is waking up or is slow to respond. Please wait a minute and try again.' };
+      };
+      
+      poll();
+    });
   }
 
   async getAssessment(domain) {

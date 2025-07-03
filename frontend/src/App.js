@@ -630,47 +630,63 @@ const ChargebeeStyleDashboard = () => {
 
   // Poll function for assessment completion
   const pollAssessment = async (assessmentId, domainName) => {
-    try {
-      const result = await apiService.pollAssessmentUntilComplete(
-        assessmentId,
-        (progress) => {
-          setAssessmentProgress(progress);
-          updateProgress(assessmentId, progress);
+    const pollInterval = 4000; // 4 seconds
+    const maxWaitTime = 900000; // 15 minutes
+    const startTime = Date.now();
+    
+    const pollOnce = async () => {
+      try {
+        // Check if we've exceeded max wait time
+        if (Date.now() - startTime > maxWaitTime) {
+          throw new Error('Assessment timed out after 15 minutes');
         }
-      );
-      
-      if (result && result.error) {
-        addToast(`Assessment failed: ${result.error}`, 'error');
+        
+        const progress = await apiService.getAssessmentProgress(assessmentId);
+        
+        // Update progress in UI
+        setAssessmentProgress(progress);
+        updateProgress(assessmentId, progress);
+        
+        if (progress.status === 'completed') {
+          // Assessment completed - get result
+          const result = await apiService.getAssessmentResult(assessmentId);
+          
+          // Success - show results
+          setCurrentAssessment(result.result);
+          setAssessmentProgress(null);
+          removeInProgressAssessment(assessmentId);
+          setCurrentAssessmentId(null);
+          setCurrentAssessmentDomain('');
+          addToast(`Assessment completed for ${domainName}`, 'success');
+          localStorage.removeItem('currentAssessmentId');
+          localStorage.removeItem('currentAssessmentDomain');
+          setIsAssessing(false);
+          setTimeout(loadRecentAssessments, 1000);
+          return; // Stop polling
+          
+        } else if (progress.status === 'failed') {
+          throw new Error(progress.error || 'Assessment failed');
+          
+        } else {
+          // Still in progress - schedule next poll
+          setTimeout(pollOnce, pollInterval);
+        }
+        
+      } catch (error) {
+        console.error('Polling error:', error);
         setAssessmentProgress(null);
         removeInProgressAssessment(assessmentId);
+        addToast(`Assessment failed for ${domainName}: ${error.message}`, 'error');
         setCurrentAssessmentId(null);
         setCurrentAssessmentDomain('');
         localStorage.removeItem('currentAssessmentId');
         localStorage.removeItem('currentAssessmentDomain');
-        return;
+        setIsAssessing(false);
       }
-      
-      // Success - show results
-      setCurrentAssessment(result.result);
-      setAssessmentProgress(null);
-      removeInProgressAssessment(assessmentId);
-      setCurrentAssessmentId(null);
-      setCurrentAssessmentDomain('');
-      addToast(`Assessment completed for ${domainName}`, 'success');
-      localStorage.removeItem('currentAssessmentId');
-      localStorage.removeItem('currentAssessmentDomain');
-      setTimeout(loadRecentAssessments, 1000);
-    } catch (error) {
-      setAssessmentProgress(null);
-      removeInProgressAssessment(assessmentId);
-      addToast(`Assessment failed for ${domainName}: ${error.message}`, 'error');
-      setCurrentAssessmentId(null);
-      setCurrentAssessmentDomain('');
-      localStorage.removeItem('currentAssessmentId');
-      localStorage.removeItem('currentAssessmentDomain');
-    } finally {
-      setIsAssessing(false);
-    }
+    };
+    
+    // Start the first poll
+    pollOnce();
   };
 
   // Handle NEW assessment with progress tracking
