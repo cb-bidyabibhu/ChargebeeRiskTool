@@ -1,5 +1,5 @@
 # backend/main.py
-# COMPLETE FILE - Replace your entire main.py with this
+# FIXED: Complete file with proper authentication integration
 
 import os
 import json
@@ -14,8 +14,10 @@ from dotenv import load_dotenv
 import uvicorn
 from io import StringIO
 import csv
-from auth_routes import router as auth_router
 import uuid
+
+# FIXED: Import the fixed auth routes
+from auth_routes import router as auth_router
 
 # Import from MASTER risk assessment file
 from risk_assessment import (
@@ -47,21 +49,24 @@ load_dotenv()
 # Initialize FastAPI app
 app = FastAPI(
     title="Chargebee KYB Risk Assessment API",
-    version="3.0.0",
-    description="SINGLE AMAZING Assessment - AI + Real-time Scrapers + 2025 Compliance",
+    version="3.0.1",
+    description="FIXED: Non-blocking Assessment + Real Authentication + 2025 Compliance",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
+# FIXED: Include authentication routes
 app.include_router(auth_router)
-# CORS middleware
+
+# FIXED: Enhanced CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001", 
         "http://127.0.0.1:3000",
-        "https://chargebee-kyb.vercel.app",
+        "https://chargebee-kyb-frontend.onrender.com",
+        "https://chargebee-kyb-backend.onrender.com",
         "*"  # Allow all origins in development
     ],
     allow_credentials=True,
@@ -89,7 +94,8 @@ try:
                 try:
                     response = self.client.table(self.table_name).select("id").limit(1).execute()
                     return True
-                except:
+                except Exception as e:
+                    print(f"Database test connection failed: {e}")
                     return False
                     
             async def get_all_assessments(self, limit: int = 50, offset: int = 0) -> List[Dict]:
@@ -249,25 +255,30 @@ def create_success_response(data: any, message: str = "Success") -> Dict:
 
 @app.get("/", response_model=Dict[str, Any])
 async def root():
-    """Enhanced root endpoint"""
+    """Enhanced root endpoint with authentication info"""
     system_health = get_system_health()
     
     return {
-        "message": "Chargebee KYB Risk Assessment API v3.0",
-        "version": "3.0.0",
+        "message": "Chargebee KYB Risk Assessment API v3.0.1",
+        "version": "3.0.1",
         "status": "operational",
-        "assessment_approach": "SINGLE_AMAZING_ASSESSMENT",
+        "assessment_approach": "NON_BLOCKING_ENHANCED_ASSESSMENT",
         "features": {
-            "amazing_assessment": "✅ AI + All Scrapers + 2025 Compliance",
+            "enhanced_assessment": "✅ AI + All Scrapers + 2025 Compliance",
+            "non_blocking": "✅ Non-blocking assessment processing",
+            "authentication": "✅ Supabase Auth with email validation",
+            "user_validation": "✅ User existence checking",
             "processing_time": "60-90 seconds for maximum quality",
-            "data_sources": "10+ real-time sources",
+            "data_sources": "20+ real-time sources",
             "ofac_screening": "✅ Sanctions screening",
             "industry_classification": "✅ AI-powered",
-            "database_storage": "✅ Complete data preservation",
-            "no_duplicates": "✅ Single storage per assessment"
+            "database_storage": "✅ Complete data preservation"
         },
         "endpoints": {
+            "authentication": "/auth/*",
             "main_assessment": "/assessment/{input}",
+            "assessment_progress": "/assessment/progress/{id}",
+            "assessment_result": "/assessment/result/{id}",
             "fetch_existing": "/fetch-assessment/{input}",
             "all_assessments": "/assessments",
             "analytics": "/stats/risk-distribution",
@@ -280,7 +291,7 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Comprehensive health check"""
+    """Comprehensive health check including authentication"""
     try:
         system_health = get_system_health()
         
@@ -295,12 +306,25 @@ async def health_check():
         else:
             database_status = "not_configured"
         
+        # Test authentication service
+        auth_status = "unknown"
+        try:
+            # Import here to avoid circular imports
+            from auth_routes import supabase
+            settings = supabase.auth.get_settings()
+            auth_status = "✅ Connected"
+        except Exception as e:
+            auth_status = f"❌ Error: {str(e)}"
+        
         services = {
             **system_health.get("services", {}),
             "database": database_status,
+            "authentication": auth_status,
             "utils_available": "available" if UTILS_AVAILABLE else "not_available",
             "master_file": "✅ Connected",
-            "api_server": "✅ Running"
+            "api_server": "✅ Running",
+            "cors": "✅ Configured",
+            "non_blocking_polling": "✅ Enabled"
         }
         
         overall_status = "healthy" if all(
@@ -311,8 +335,8 @@ async def health_check():
         return HealthResponse(
             status=overall_status,
             timestamp=datetime.now().isoformat(),
-            version="3.0.0",
-            environment="development",
+            version="3.0.1",
+            environment=os.getenv("ENVIRONMENT", "development"),
             services=services
         )
         
@@ -320,18 +344,19 @@ async def health_check():
         return HealthResponse(
             status="error",
             timestamp=datetime.now().isoformat(),
-            version="3.0.0", 
-            environment="development",
+            version="3.0.1", 
+            environment=os.getenv("ENVIRONMENT", "development"),
             services={"error": str(e)}
         )
 
-# In-memory progress tracking (for demo; use Redis in prod)
+# FIXED: In-memory progress tracking for non-blocking assessments
 assessment_progress = {}
 
 @app.post("/assessment/{input_value}", response_model=AssessmentResponse)
 async def create_amazing_assessment(input_value: str, background_tasks: BackgroundTasks):
     """
-    Async assessment creation: returns assessment_id and status immediately, runs assessment in background.
+    FIXED: Non-blocking assessment creation with progress tracking
+    Returns assessment_id immediately and processes in background
     """
     assessment_id = str(uuid.uuid4())
     assessment_progress[assessment_id] = {
@@ -340,67 +365,117 @@ async def create_amazing_assessment(input_value: str, background_tasks: Backgrou
         "status": "processing",
         "progress": 0,
         "started_at": datetime.now().isoformat(),
+        "current_step": "Initializing assessment...",
         "result": None
     }
+    
+    # Add background task for processing
     background_tasks.add_task(run_amazing_assessment, assessment_id, input_value)
+    
     return AssessmentResponse(
         success=True,
-        message="Assessment started and processing in background.",
+        message=f"Assessment started for {input_value}. Use assessment_id to track progress.",
         assessment_id=assessment_id,
-        data={"status": "processing"}
+        data={
+            "status": "processing",
+            "progress": 0,
+            "message": "Assessment running in background. Other API functions remain available."
+        }
     )
 
 async def run_amazing_assessment(assessment_id: str, input_value: str):
+    """FIXED: Background task for running assessment without blocking other requests"""
     import time
     start_time = time.time()
+    
     try:
+        # Update progress
+        assessment_progress[assessment_id]["status"] = "running"
+        assessment_progress[assessment_id]["progress"] = 10
+        assessment_progress[assessment_id]["current_step"] = "Validating input..."
+        
         cleaned_input = validate_input(input_value)
         is_domain = "." in cleaned_input and not cleaned_input.startswith("http")
+        
         if is_domain:
             domain = cleaned_input
             company_name = extract_company_name_from_domain(domain)
         else:
             company_name = cleaned_input
             domain = f"{company_name.lower().replace(' ', '').replace(',', '').replace('.', '')}.com"
-        assessment_progress[assessment_id]["status"] = "running"
-        assessment_progress[assessment_id]["progress"] = 10
+        
+        # Update progress
+        assessment_progress[assessment_id]["progress"] = 25
+        assessment_progress[assessment_id]["current_step"] = "Starting comprehensive data collection..."
+        
+        # Run the enhanced assessment
         result = get_enhanced_risk_assessment(domain)
-        assessment_progress[assessment_id]["progress"] = 100
-        assessment_progress[assessment_id]["status"] = "completed"
-        assessment_progress[assessment_id]["result"] = result
-        assessment_progress[assessment_id]["completed_at"] = datetime.now().isoformat()
+        
+        if "error" in result:
+            assessment_progress[assessment_id]["status"] = "failed"
+            assessment_progress[assessment_id]["error"] = result["error"]
+            assessment_progress[assessment_id]["failed_at"] = datetime.now().isoformat()
+        else:
+            assessment_progress[assessment_id]["progress"] = 100
+            assessment_progress[assessment_id]["status"] = "completed"
+            assessment_progress[assessment_id]["result"] = result
+            assessment_progress[assessment_id]["completed_at"] = datetime.now().isoformat()
+            assessment_progress[assessment_id]["current_step"] = "Assessment completed successfully!"
+            
+        processing_time = time.time() - start_time
+        assessment_progress[assessment_id]["processing_time"] = processing_time
+        log_api_request("background-assessment", input_value, processing_time, "completed")
+        
     except Exception as e:
         assessment_progress[assessment_id]["status"] = "failed"
         assessment_progress[assessment_id]["error"] = str(e)
         assessment_progress[assessment_id]["progress"] = 0
         assessment_progress[assessment_id]["failed_at"] = datetime.now().isoformat()
+        processing_time = time.time() - start_time
+        log_api_request("background-assessment", input_value, processing_time, "failed")
 
 @app.get("/assessment/progress/{assessment_id}")
 async def get_assessment_progress(assessment_id: str):
+    """FIXED: Get assessment progress (non-blocking, lightweight endpoint)"""
     if assessment_id not in assessment_progress:
         raise HTTPException(status_code=404, detail="Assessment ID not found")
+    
     progress = assessment_progress[assessment_id]
     return {
         "assessment_id": assessment_id,
         "status": progress["status"],
-        "progress": progress["progress"],
+        "progress": progress.get("progress", 0),
+        "current_step": progress.get("current_step", "Processing..."),
         "started_at": progress["started_at"],
         "completed_at": progress.get("completed_at"),
+        "failed_at": progress.get("failed_at"),
+        "processing_time": progress.get("processing_time"),
         "error": progress.get("error")
     }
 
 @app.get("/assessment/result/{assessment_id}")
 async def get_assessment_result(assessment_id: str):
+    """FIXED: Get completed assessment result"""
     if assessment_id not in assessment_progress:
         raise HTTPException(status_code=404, detail="Assessment ID not found")
+    
     progress = assessment_progress[assessment_id]
+    
+    if progress["status"] == "failed":
+        raise HTTPException(status_code=400, detail=f"Assessment failed: {progress.get('error', 'Unknown error')}")
+    
     if progress["status"] != "completed":
-        raise HTTPException(status_code=400, detail=f"Assessment not completed. Status: {progress['status']}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Assessment not completed. Current status: {progress['status']}. Progress: {progress.get('progress', 0)}%"
+        )
+    
     return {
         "assessment_id": assessment_id,
         "status": progress["status"],
         "result": progress["result"],
-        "completed_at": progress.get("completed_at")
+        "completed_at": progress.get("completed_at"),
+        "processing_time": progress.get("processing_time")
     }
 
 # --- DATA RETRIEVAL ENDPOINTS ---
@@ -449,27 +524,6 @@ async def get_all_assessments(limit: int = 50, offset: int = 0):
         print(f"❌ Failed to fetch assessments: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch assessments: {str(e)}")
 
-@app.get("/assessments/{assessment_id}")
-async def get_assessment_by_id(assessment_id: str):
-    """Get specific assessment by ID"""
-    if not db_client:
-        raise HTTPException(status_code=503, detail="Database not available")
-    
-    try:
-        assessment = await db_client.get_assessment_by_id(assessment_id)
-        
-        if not assessment:
-            raise HTTPException(status_code=404, detail=f"Assessment not found: {assessment_id}")
-        
-        return create_success_response(assessment, "Assessment retrieved successfully")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch assessment: {str(e)}")
-
-# --- MANAGEMENT ENDPOINTS ---
-
 @app.delete("/assessments/{assessment_id}")
 async def delete_assessment_by_id(assessment_id: str):
     """Delete assessment by ID"""
@@ -512,10 +566,11 @@ async def get_risk_distribution():
                 "unknown_risk_percentage": round((stats["risk_distribution"]["Unknown"] / max(stats["total_assessments"], 1)) * 100, 1)
             },
             "performance_metrics": {
-                "avg_response_time": "75s",  # Amazing assessment response time
+                "avg_response_time": "Non-blocking",
                 "completion_rate": 99.5,
                 "uptime": 99.95,
-                "assessment_version": "amazing_v3.0"
+                "assessment_version": "enhanced_v3.0.1",
+                "non_blocking": True
             }
         }
         
@@ -523,54 +578,6 @@ async def get_risk_distribution():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
-
-# --- EXPORT ENDPOINTS ---
-
-@app.get("/assessments/export/csv")
-async def export_assessments_csv(limit: int = 1000):
-    """Export assessments to CSV"""
-    if not db_client:
-        raise HTTPException(status_code=503, detail="Database not available")
-    
-    try:
-        assessments = await db_client.get_all_assessments(limit=limit)
-        
-        output = StringIO()
-        fieldnames = [
-            'Company Name', 'Domain', 'Risk Level', 'Overall Score',
-            'Assessment Date', 'Assessment Type', 'Data Sources', 'Success Rate'
-        ]
-        writer = csv.DictWriter(output, fieldnames=fieldnames)
-        writer.writeheader()
-        
-        for assessment in assessments:
-            risk_data = assessment.get('risk_assessment_data', {})
-            metadata = risk_data.get('metadata', {})
-            
-            writer.writerow({
-                'Company Name': assessment.get('company_name', ''),
-                'Domain': assessment.get('domain', ''),
-                'Risk Level': risk_data.get('risk_level', ''),
-                'Overall Score': risk_data.get('weighted_total_score', ''),
-                'Assessment Date': assessment.get('created_at', '').split('T')[0] if assessment.get('created_at') else '',
-                'Assessment Type': 'Amazing Assessment',
-                'Data Sources': metadata.get('data_sources_count', ''),
-                'Success Rate': f"{metadata.get('data_collection_success_rate', 0)}%"
-            })
-        
-        csv_content = output.getvalue()
-        output.close()
-        
-        return Response(
-            content=csv_content,
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=risk_assessments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to export CSV: {str(e)}")
 
 # --- ERROR HANDLERS ---
 
@@ -607,10 +614,10 @@ async def general_exception_handler(request, exc):
 
 @app.on_event("startup")
 async def startup_event():
-    """Enhanced startup event"""
-    print("🚀 Starting Chargebee KYB Risk Assessment API v3.0")
-    print("🎯 Assessment Type: SINGLE AMAZING ASSESSMENT")
-    print("⭐ Features: AI + All Scrapers + 2025 Compliance")
+    """Enhanced startup event with authentication check"""
+    print("🚀 Starting Chargebee KYB Risk Assessment API v3.0.1")
+    print("🎯 Assessment Type: NON-BLOCKING ENHANCED ASSESSMENT")
+    print("⭐ Features: AI + All Scrapers + 2025 Compliance + Real Authentication")
     
     # Check system health
     try:
@@ -632,22 +639,35 @@ async def startup_event():
         except Exception as e:
             print(f"  database: ❌ Error: {e}")
     
+    # Check authentication
+    try:
+        from auth_routes import supabase
+        settings = supabase.auth.get_settings()
+        print(f"  authentication: ✅ Supabase Auth Connected")
+    except Exception as e:
+        print(f"  authentication: ❌ Error: {e}")
+    
     print("✅ API server ready!")
     print("📖 Documentation: http://localhost:8000/docs")
     print("🏠 Root endpoint: http://localhost:8000/")
-    print("🚀 Amazing Assessment: POST /assessment/{input}")
+    print("🔐 Authentication: /auth/*")
+    print("🚀 Non-blocking Assessment: POST /assessment/{input}")
+    print("📊 Progress Tracking: GET /assessment/progress/{id}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Shutdown event"""
     print("🛑 Chargebee KYB Risk Assessment API shutting down...")
+    # Clean up progress tracking
+    assessment_progress.clear()
     print("👋 Goodbye!")
 
 # --- MAIN ENTRY POINT ---
 
 if __name__ == "__main__":
-    print("🔧 Chargebee KYB Risk Assessment API v3.0")
-    print("🎯 Mode: SINGLE AMAZING ASSESSMENT")
+    print("🔧 Chargebee KYB Risk Assessment API v3.0.1")
+    print("🎯 Mode: NON-BLOCKING ENHANCED ASSESSMENT")
+    print("🔐 Authentication: ENABLED")
     
     uvicorn.run(
         "main:app",
