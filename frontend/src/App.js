@@ -637,15 +637,23 @@ const ChargebeeStyleDashboard = () => {
   };
 
 // NON-BLOCKING Poll function for assessment completion
+// NON-BLOCKING Poll function for assessment completion
 const pollAssessment = (assessmentId, domainName) => {
-  const pollInterval = 4000; // 4 seconds
+  console.log(`🔄 Starting NON-BLOCKING polling for: ${assessmentId}`);
+  
+  const pollInterval = 5000; // 5 seconds
   const maxWaitTime = 900000; // 15 minutes
   const startTime = Date.now();
+  let pollCount = 0;
+  let consecutiveErrors = 0;
+  const maxErrors = 5;
   
   const pollOnce = () => {
+    pollCount++;
+    
     // Check if we've exceeded max wait time
     if (Date.now() - startTime > maxWaitTime) {
-      console.error('Assessment timed out after 15 minutes');
+      console.error(`⏰ Assessment ${assessmentId} timed out after 15 minutes`);
       setAssessmentProgress(null);
       removeInProgressAssessment(assessmentId);
       addToast(`Assessment timed out for ${domainName}`, 'error');
@@ -657,18 +665,26 @@ const pollAssessment = (assessmentId, domainName) => {
       return;
     }
     
+    // Use the lightweight progress check (non-blocking)
     apiService.getAssessmentProgress(assessmentId)
       .then(progress => {
+        // Reset error counter on successful response
+        consecutiveErrors = 0;
+        
         // Update progress in UI
         setAssessmentProgress(progress);
         updateProgress(assessmentId, progress);
         
-        if (progress.status === 'completed') {
+        console.log(`📊 Poll ${pollCount}: ${progress.status} - ${progress.progress}% - ${progress.current_step}`);
+        
+        if (progress.status === 'completed' && progress.completed) {
+          console.log(`✅ Assessment ${assessmentId} completed, fetching result...`);
+          
           // Assessment completed - get result
           apiService.getAssessmentResult(assessmentId)
-            .then(result => {
+            .then(resultResponse => {
               // Success - show results
-              setCurrentAssessment(result.result);
+              setCurrentAssessment(resultResponse.result);
               setAssessmentProgress(null);
               removeInProgressAssessment(assessmentId);
               setCurrentAssessmentId(null);
@@ -688,7 +704,15 @@ const pollAssessment = (assessmentId, domainName) => {
             });
             
         } else if (progress.status === 'failed') {
-          throw new Error(progress.error || 'Assessment failed');
+          console.error(`❌ Assessment ${assessmentId} failed:`, progress.error);
+          setAssessmentProgress(null);
+          removeInProgressAssessment(assessmentId);
+          addToast(`Assessment failed for ${domainName}: ${progress.error}`, 'error');
+          setCurrentAssessmentId(null);
+          setCurrentAssessmentDomain('');
+          localStorage.removeItem('currentAssessmentId');
+          localStorage.removeItem('currentAssessmentDomain');
+          setIsAssessing(false);
           
         } else {
           // Still in progress - schedule next poll (NON-BLOCKING)
@@ -696,15 +720,24 @@ const pollAssessment = (assessmentId, domainName) => {
         }
       })
       .catch(error => {
-        console.error('Polling error:', error);
-        setAssessmentProgress(null);
-        removeInProgressAssessment(assessmentId);
-        addToast(`Assessment failed for ${domainName}: ${error.message}`, 'error');
-        setCurrentAssessmentId(null);
-        setCurrentAssessmentDomain('');
-        localStorage.removeItem('currentAssessmentId');
-        localStorage.removeItem('currentAssessmentDomain');
-        setIsAssessing(false);
+        consecutiveErrors++;
+        console.warn(`⚠️ Poll error ${consecutiveErrors}/${maxErrors} for ${assessmentId}:`, error.message);
+        
+        if (consecutiveErrors >= maxErrors) {
+          console.error(`❌ Too many consecutive polling errors for ${assessmentId}`);
+          setAssessmentProgress(null);
+          removeInProgressAssessment(assessmentId);
+          addToast(`Polling failed for ${domainName}: Too many errors`, 'error');
+          setCurrentAssessmentId(null);
+          setCurrentAssessmentDomain('');
+          localStorage.removeItem('currentAssessmentId');
+          localStorage.removeItem('currentAssessmentDomain');
+          setIsAssessing(false);
+        } else {
+          // Retry with longer delay
+          console.log(`🔄 Retrying poll in ${pollInterval * 2}ms...`);
+          setTimeout(pollOnce, pollInterval * 2);
+        }
       });
   };
   
@@ -721,9 +754,13 @@ const pollAssessment = (assessmentId, domainName) => {
     setCurrentAssessment(null);
     
     try {
-      console.log(`🚀 Creating NEW assessment for: ${domainInput}`);
+      console.log(`🚀 Creating NEW NON-BLOCKING assessment for: ${domainInput}`);
+      
+      // This now returns immediately with assessment_id
       const response = await apiService.createAssessment(domainInput);
       const assessmentId = response.assessment_id;
+      
+      console.log(`✅ Assessment started with ID: ${assessmentId}`);
       
       setCurrentAssessmentId(assessmentId);
       setCurrentAssessmentDomain(domainInput);
@@ -736,8 +773,9 @@ const pollAssessment = (assessmentId, domainName) => {
       
       setDomainInput('');
       
-      // Start polling for progress
+      // Start non-blocking polling for progress
       pollAssessment(assessmentId, domainInput);
+      
     } catch (error) {
       setIsAssessing(false);
       setAssessmentProgress(null);

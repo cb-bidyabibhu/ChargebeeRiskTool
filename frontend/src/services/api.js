@@ -1,4 +1,5 @@
-// frontend/src/services/api.js - FIXED: Non-blocking API + Real Authentication
+// frontend/src/services/api.js - FIXED: Non-blocking API with proper polling
+// COMPLETE FILE - Replace your entire api.js with this
 
 class APIService {
   constructor() {
@@ -70,7 +71,7 @@ class APIService {
   // FIXED: Non-blocking makeRequest that won't interfere with other API calls
   async makeRequest(endpoint, options = {}) {
     const maxRetries = 2;
-    const timeoutMs = 15000;
+    const timeoutMs = 30000; // 30 second timeout for regular requests
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -115,7 +116,7 @@ class APIService {
         lastError = error;
         
         if (attempt < maxRetries && error.name !== 'AbortError') {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
@@ -123,22 +124,18 @@ class APIService {
     throw lastError;
   }
 
-  // FIXED: Proper Authentication Methods with Supabase Integration
-
+  // FIXED: Authentication Methods
   async signup(email, password, fullName) {
     try {
-      // FIXED: Validate Chargebee email
       if (!this.validateChargebeeEmail(email)) {
         throw new Error('Please use a valid @chargebee.com email address');
       }
 
-      // FIXED: Check if user already exists
       const existsCheck = await this.checkUserExists(email);
       if (existsCheck.exists) {
         throw new Error('An account with this email already exists. Please login instead.');
       }
 
-      // Create user in Supabase Auth
       const response = await this.makeRequest('/auth/signup', {
         method: 'POST',
         body: JSON.stringify({
@@ -168,7 +165,6 @@ class APIService {
 
   async login(email, password) {
     try {
-      // FIXED: Validate Chargebee email
       if (!this.validateChargebeeEmail(email)) {
         throw new Error('Please use a valid @chargebee.com email address');
       }
@@ -177,7 +173,6 @@ class APIService {
         throw new Error('Password is required');
       }
 
-      // FIXED: Authenticate with backend
       const response = await this.makeRequest('/auth/signin', {
         method: 'POST',
         body: JSON.stringify({
@@ -187,7 +182,6 @@ class APIService {
       });
 
       if (response.success) {
-        // Store authentication data
         this.setAuthTokens(
           response.session.access_token,
           response.session.refresh_token,
@@ -211,7 +205,6 @@ class APIService {
   async logout() {
     try {
       if (this.token && !this.token.startsWith('dev-token')) {
-        // Call backend logout if we have a real token
         await this.makeRequest('/auth/signout', {
           method: 'POST'
         });
@@ -229,12 +222,10 @@ class APIService {
         return null;
       }
 
-      // If it's a development token, return stored user
       if (this.token.startsWith('dev-token')) {
         return this.user;
       }
 
-      // FIXED: Get current user from backend
       const response = await this.makeRequest('/auth/user');
       if (response.success) {
         return response.user;
@@ -249,10 +240,8 @@ class APIService {
     }
   }
 
-  // FIXED: Check if user exists in system
   async checkUserExists(email) {
     try {
-      // Don't require authentication for this check
       const response = await fetch(`${this.baseURL}/auth/check-user`, {
         method: 'POST',
         headers: {
@@ -265,17 +254,14 @@ class APIService {
         const data = await response.json();
         return data;
       } else {
-        // If endpoint doesn't exist, assume user doesn't exist
         return { exists: false };
       }
     } catch (error) {
       console.error('User check failed:', error);
-      // If backend is unavailable, assume user doesn't exist
       return { exists: false };
     }
   }
 
-  // FIXED: Proper email validation
   validateChargebeeEmail(email) {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@chargebee\.com$/;
     return emailRegex.test(email);
@@ -285,9 +271,13 @@ class APIService {
 
   async createAssessment(domain) {
     try {
+      console.log(`🚀 Starting NON-BLOCKING assessment for: ${domain}`);
+      
       const response = await this.makeRequest(`/assessment/${domain}`, {
         method: 'POST'
       });
+      
+      console.log(`✅ Assessment started successfully:`, response);
       return response;
     } catch (error) {
       console.error('Failed to create assessment:', error);
@@ -295,12 +285,12 @@ class APIService {
     }
   }
 
-  // FIXED: Non-blocking progress checking using separate lightweight requests
+  // FIXED: Lightweight progress checking (non-blocking)
   async getAssessmentProgress(assessmentId) {
     try {
-      // Use separate fetch with short timeout to avoid blocking other requests
+      // Use lightweight fetch with very short timeout for progress checks
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Very short timeout for progress
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
       const response = await fetch(`${this.baseURL}/assessment/progress/${assessmentId}`, {
         method: 'GET',
@@ -314,90 +304,121 @@ class APIService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Progress check failed: ${response.status}`);
+        // Don't throw error for progress checks, just return default
+        console.warn(`Progress check failed with status ${response.status}`);
+        return {
+          status: 'processing',
+          progress: 0,
+          current_step: 'Checking progress...',
+          completed: false
+        };
       }
 
-      return await response.json();
+      const data = await response.json();
+      // Don't log every progress update to avoid spam
+      return data;
+      
     } catch (error) {
-      // Don't log every progress check error to avoid spam
+      // Don't log every progress error to avoid spam
       if (error.name !== 'AbortError') {
-        console.warn('Progress check failed:', error.message);
+        console.warn('Progress check failed (non-critical):', error.message);
       }
-      throw error;
+      return {
+        status: 'processing',
+        progress: 0,
+        current_step: 'Assessment in progress...',
+        completed: false
+      };
     }
   }
 
   async getAssessmentResult(assessmentId) {
     try {
-      return await this.makeRequest(`/assessment/result/${assessmentId}`);
+      console.log(`📥 Fetching result for assessment: ${assessmentId}`);
+      
+      const response = await this.makeRequest(`/assessment/result/${assessmentId}`);
+      
+      console.log(`✅ Assessment result retrieved:`, response);
+      return response;
     } catch (error) {
       console.error('Failed to get assessment result:', error);
       throw new Error('Unable to get assessment result.');
     }
   }
 
-  // FIXED: Non-blocking polling using Web Workers concept (in-memory simulation)
+  // FIXED: Non-blocking polling that doesn't interfere with other operations
   pollAssessmentUntilComplete(assessmentId, onProgressUpdate, maxWaitTime = 900000) {
     return new Promise((resolve, reject) => {
+      console.log(`🔄 Starting NON-BLOCKING polling for: ${assessmentId}`);
+      
       const startTime = Date.now();
-      const pollInterval = 4000; // 4 second intervals
+      const pollInterval = 5000; // 5 second intervals (less frequent to avoid spam)
       let pollCount = 0;
-      const maxPolls = Math.ceil(maxWaitTime / pollInterval);
+      let consecutiveErrors = 0;
+      const maxErrors = 5;
       
       const poll = async () => {
         try {
           pollCount++;
           
           // Check timeout
-          if (Date.now() - startTime > maxWaitTime || pollCount > maxPolls) {
+          if (Date.now() - startTime > maxWaitTime) {
+            console.error(`⏰ Assessment ${assessmentId} timed out after ${maxWaitTime/1000} seconds`);
             reject(new Error('Assessment timed out after 15 minutes'));
             return;
           }
           
-          // Use the lightweight progress check
+          // Get progress (non-blocking)
           const progress = await this.getAssessmentProgress(assessmentId);
           
+          // Reset error counter on successful response
+          consecutiveErrors = 0;
+          
+          // Update UI
           if (onProgressUpdate) {
             onProgressUpdate(progress);
           }
           
-          if (progress.status === 'completed') {
-            const result = await this.getAssessmentResult(assessmentId);
-            resolve(result);
+          console.log(`📊 Poll ${pollCount}: ${progress.status} - ${progress.progress}% - ${progress.current_step}`);
+          
+          if (progress.status === 'completed' && progress.completed) {
+            console.log(`✅ Assessment ${assessmentId} completed, fetching result...`);
+            try {
+              const result = await this.getAssessmentResult(assessmentId);
+              console.log(`🎉 Assessment ${assessmentId} fully completed`);
+              resolve(result);
+            } catch (resultError) {
+              console.error(`❌ Failed to get result for ${assessmentId}:`, resultError);
+              reject(new Error(`Assessment completed but failed to get result: ${resultError.message}`));
+            }
           } else if (progress.status === 'failed') {
+            console.error(`❌ Assessment ${assessmentId} failed:`, progress.error);
             reject(new Error(progress.error || 'Assessment failed'));
           } else {
-            // Schedule next poll using requestIdleCallback to avoid blocking UI
-            const scheduleNextPoll = () => {
-              if (window.requestIdleCallback) {
-                window.requestIdleCallback(() => {
-                  setTimeout(poll, pollInterval);
-                }, { timeout: pollInterval });
-              } else {
-                setTimeout(poll, pollInterval);
-              }
-            };
-            
-            scheduleNextPoll();
+            // Still processing - schedule next poll using setTimeout (non-blocking)
+            setTimeout(poll, pollInterval);
           }
           
         } catch (error) {
-          // For network errors, retry a few times before giving up
-          if (pollCount < 3) {
-            setTimeout(poll, pollInterval);
+          consecutiveErrors++;
+          console.warn(`⚠️ Poll error ${consecutiveErrors}/${maxErrors} for ${assessmentId}:`, error.message);
+          
+          if (consecutiveErrors >= maxErrors) {
+            console.error(`❌ Too many consecutive polling errors for ${assessmentId}`);
+            reject(new Error(`Polling failed after ${maxErrors} consecutive errors: ${error.message}`));
           } else {
-            reject(new Error(`Polling failed: ${error.message}`));
+            // Retry with longer delay
+            setTimeout(poll, pollInterval * 2);
           }
         }
       };
       
-      // Start polling immediately
+      // Start first poll immediately
       poll();
     });
   }
 
-  // FIXED: All other API methods use the fixed makeRequest
-
+  // All other API methods remain the same
   async checkBackendHealth() {
     try {
       return await this.makeRequest('/health');
@@ -457,7 +478,6 @@ class APIService {
         throw new Error(`Export failed: ${response.status}`);
       }
       
-      // Handle CSV download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
