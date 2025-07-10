@@ -4,13 +4,13 @@ FIXED Authentication routes with proper user validation and email checking
 """
 
 import os
-from fastapi import APIRouter, HTTPException, Depends, Request, Header
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr, validator
-from supabase import create_client, Client
-from typing import Optional, Dict, Any
-from datetime import datetime
 import re
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Depends, Header
+from pydantic import BaseModel, EmailStr, validator
+from supabase import Client, create_client
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
