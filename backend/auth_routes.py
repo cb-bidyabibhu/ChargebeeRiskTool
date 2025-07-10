@@ -24,8 +24,8 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Get the correct redirect URL based on environment
-def get_redirect_url():
-    """Get the appropriate redirect URL based on environment"""
+def get_redirect_url() -> str:
+    """Return the appropriate frontend redirect URL based on environment."""
     if os.getenv("RENDER"):
         return "https://chargebee-kyb-frontend.onrender.com"
     return "http://localhost:3000"
@@ -61,10 +61,11 @@ async def check_user_exists_in_supabase(email: str) -> bool:
         
         # Alternative: Try to initiate password reset (safe way to check existence)
         try:
-            # This won't actually send an email in our case, but will tell us if user exists
-            result = supabase.auth.reset_password_email(email, {
-                "redirect_to": get_redirect_url() + "/reset-password"
-            })
+            # We do not need the actual response; calling this API is enough to check existence
+            _ = supabase.auth.reset_password_email(
+                email,
+                {"redirect_to": f"{get_redirect_url()}/reset-password"}
+            )
             return True  # If no exception, user exists
         except Exception as e:
             error_msg = str(e).lower()
