@@ -267,6 +267,13 @@ async def sign_in(request: SignInRequest):
             })
             
             if response.user and response.session:
+                # Enforce email verification – prevent login if user has not confirmed email
+                if response.user.email_confirmed_at is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Email address not verified. Please check your inbox and click the verification link before logging in."
+                    )
+
                 return {
                     "success": True,
                     "message": "Signed in successfully",
@@ -274,7 +281,7 @@ async def sign_in(request: SignInRequest):
                         "id": response.user.id,
                         "email": response.user.email,
                         "user_metadata": response.user.user_metadata or {},
-                        "email_verified": response.user.email_confirmed_at is not None
+                        "email_verified": True
                     },
                     "session": {
                         "access_token": response.session.access_token,

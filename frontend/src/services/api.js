@@ -262,6 +262,11 @@ class APIService {
     }
   }
 
+  // Alias for backward compatibility with existing LoginPage code
+  async verifyEmail(email) {
+    return await this.checkUserExists(email);
+  }
+
   validateChargebeeEmail(email) {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@chargebee\.com$/;
     return emailRegex.test(email);

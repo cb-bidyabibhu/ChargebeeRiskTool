@@ -317,6 +317,12 @@ const LoginPage = ({ onLogin }) => {
         // Login successful - component will unmount
       } else {
         setError(loginResult.message);
+
+        // If backend indicates no account found, switch to signup flow automatically
+        if (loginResult.message && loginResult.message.toLowerCase().includes('no account found')) {
+          setIsSignup(true);
+          setSuccess('No account found for this email. Please create a new account.');
+        }
       }
       setIsLoading(false);
     }
@@ -2557,6 +2563,14 @@ const App = () => {
       const response = await apiService.login(email, password);
       
       if (response.success) {
+        // Ensure the email is verified before allowing login
+        if (!response.user.email_verified) {
+          return {
+            success: false,
+            message: 'Please verify your email address before logging in. Check your inbox for the verification link.'
+          };
+        }
+
         setUser(response.user);
         return { success: true };
       } else {
