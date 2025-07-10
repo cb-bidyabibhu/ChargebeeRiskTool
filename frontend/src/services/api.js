@@ -150,9 +150,10 @@ class APIService {
           success: true,
           message: response.dev_mode ? 
             'Account created successfully! You can now login.' :
-            'Account created successfully! Please check your email to verify your account.',
+            'Account created successfully! Please check your email to verify your account before logging in.',
           user: response.user,
-          dev_mode: response.dev_mode
+          dev_mode: response.dev_mode,
+          email_verification_required: !response.dev_mode
         };
       } else {
         throw new Error(response.message || 'Failed to create account');
@@ -173,6 +174,12 @@ class APIService {
         throw new Error('Password is required');
       }
 
+      // First check if user exists
+      const existsCheck = await this.checkUserExists(email);
+      if (!existsCheck.exists) {
+        throw new Error('No account found with this email. Please sign up first.');
+      }
+
       const response = await this.makeRequest('/auth/signin', {
         method: 'POST',
         body: JSON.stringify({
@@ -182,6 +189,11 @@ class APIService {
       });
 
       if (response.success) {
+        // Check if email is verified
+        if (!response.user.email_verified && !response.dev_mode) {
+          throw new Error('Please verify your email before logging in. Check your inbox for the verification link.');
+        }
+
         this.setAuthTokens(
           response.session.access_token,
           response.session.refresh_token,
@@ -191,7 +203,8 @@ class APIService {
         return {
           success: true,
           user: response.user,
-          session: response.session
+          session: response.session,
+          email_verified: response.user.email_verified
         };
       } else {
         throw new Error(response.message || 'Invalid email or password');
@@ -260,6 +273,11 @@ class APIService {
       console.error('User check failed:', error);
       return { exists: false };
     }
+  }
+
+  // New method to verify email
+  async verifyEmail(email) {
+    return this.checkUserExists(email);
   }
 
   validateChargebeeEmail(email) {

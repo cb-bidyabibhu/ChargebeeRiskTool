@@ -276,35 +276,50 @@ const LoginPage = ({ onLogin }) => {
       setIsLoading(true);
       
       try {
+        // Check if user already exists
+        const existsCheck = await apiService.checkUserExists(email);
+        if (existsCheck.exists) {
+          setError('An account with this email already exists. Please login instead.');
+          setIsSignup(false);
+          setIsLoading(false);
+          return;
+        }
+
         // Call signup API
         const response = await apiService.signup(email, password, name);
         
         if (response.success) {
-          if (response.dev_mode) {
+          if (response.email_verification_required) {
+            setSuccess('Account created successfully! Please check your email to validate the link we sent, then come back and login.');
+            setIsSignup(false);
+            // Clear password fields but keep email
+            setPassword('');
+            setConfirmPassword('');
+            setName('');
+          } else if (response.dev_mode) {
             // In dev mode, auto-login after signup
             setSuccess('Account created! Logging you in...');
             setTimeout(async () => {
-              setIsLoading(true);
-              const loginResult = await onLogin(email, password);
-              if (loginResult.success) {
-                setIsSignup(false);
-              } else {
-                setError(loginResult.message);
+              try {
+                const loginResult = await onLogin(email, password);
+                if (!loginResult.success) {
+                  setError(loginResult.message);
+                }
+              } catch (error) {
+                setError(error.message);
               }
-              setIsLoading(false);
             }, 1000);
-          } else {
-            setSuccess('Account created successfully! Please check your email to verify, then login.');
-            setIsSignup(false);
           }
-          setName('');
-          setConfirmPassword('');
-          setPassword('');
         } else {
           setError(response.message || 'Failed to create account');
         }
       } catch (error) {
-        setError(error.message || 'Failed to create account');
+        if (error.message.includes('already exists')) {
+          setError('An account with this email already exists. Please login instead.');
+          setIsSignup(false);
+        } else {
+          setError(error.message || 'Failed to create account');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -312,13 +327,30 @@ const LoginPage = ({ onLogin }) => {
     } else {
       // Login
       setIsLoading(true);
-      const loginResult = await onLogin(email, password);
-      if (loginResult.success) {
-        // Login successful - component will unmount
-      } else {
-        setError(loginResult.message);
+      try {
+        const loginResult = await onLogin(email, password);
+        if (loginResult.success) {
+          // Login successful - component will unmount
+        } else {
+          setError(loginResult.message);
+        }
+      } catch (error) {
+        // Handle specific error cases
+        if (error.message.includes('No account found')) {
+          setError('No account found with this email. Please sign up first.');
+          // Automatically switch to signup mode
+          setTimeout(() => {
+            setIsSignup(true);
+            setError('');
+          }, 2000);
+        } else if (error.message.includes('verify your email')) {
+          setError('Please verify your email before logging in. Check your inbox for the verification link.');
+        } else {
+          setError(error.message || 'Login failed');
+        }
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
   };
 
@@ -326,9 +358,19 @@ const LoginPage = ({ onLogin }) => {
   const handleEmailBlur = async () => {
     if (isSignup && validateChargebeeEmail(email)) {
       try {
-        const response = await apiService.verifyEmail(email);
+        const response = await apiService.checkUserExists(email);
         if (response.exists) {
-          setError('An account with this email already exists');
+          setError('An account with this email already exists. Please login instead.');
+          // Suggest switching to login
+          setTimeout(() => {
+            if (window.confirm('This email already has an account. Would you like to login instead?')) {
+              setIsSignup(false);
+              setError('');
+              setPassword('');
+              setConfirmPassword('');
+              setName('');
+            }
+          }, 100);
         }
       } catch (error) {
         // Ignore verification errors
@@ -2551,14 +2593,42 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [globalInProgressAssessments, setGlobalInProgressAssessments] = useState(new Set());
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check for existing authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await apiService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleLogin = async (email, password) => {
     try {
       const response = await apiService.login(email, password);
       
       if (response.success) {
-        setUser(response.user);
-        return { success: true };
+        // Check if email is verified
+        if (response.email_verified !== false) {
+          setUser(response.user);
+          return { success: true };
+        } else {
+          // This case should be handled by the API service, but just in case
+          return { 
+            success: false, 
+            message: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+          };
+        }
       } else {
         return { success: false, message: response.message || 'Invalid email or password' };
       }
@@ -2592,6 +2662,20 @@ const App = () => {
         return <ChargebeeStyleDashboard />;
     }
   };
+
+  // Show loading screen while checking authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full mb-4 shadow-lg">
+            <Shield className="w-8 h-8 text-white animate-pulse" />
+          </div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <LoginPage onLogin={handleLogin} />;
