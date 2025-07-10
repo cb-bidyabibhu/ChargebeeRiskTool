@@ -294,17 +294,28 @@ const LoginPage = ({ onLogin }) => {
               setIsLoading(false);
             }, 1000);
           } else {
-            setSuccess('Account created successfully! Please check your email to verify, then login.');
+            // Explicit success message about email verification
+            setSuccess('✅ Account created! Please check your Chargebee email to verify your account before logging in.');
             setIsSignup(false);
           }
+          // Clear sensitive fields
           setName('');
           setConfirmPassword('');
           setPassword('');
         } else {
+          // Generic failure
           setError(response.message || 'Failed to create account');
         }
       } catch (error) {
-        setError(error.message || 'Failed to create account');
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('already exists') || msg.includes('already registered')) {
+          // User already exists – switch to login mode
+          setSuccess('An account with this email already exists. Please login.');
+          setIsSignup(false);
+          setError('');
+        } else {
+          setError(error.message || 'Failed to create account');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -316,12 +327,20 @@ const LoginPage = ({ onLogin }) => {
       if (loginResult.success) {
         // Login successful - component will unmount
       } else {
-        setError(loginResult.message);
+        const msgLower = (loginResult.message || '').toLowerCase();
 
-        // If backend indicates no account found, switch to signup flow automatically
-        if (loginResult.message && loginResult.message.toLowerCase().includes('no account found')) {
+        // Handle specific error scenarios
+        if (msgLower.includes('verify your email') || msgLower.includes('email address not verified')) {
+          // Show clear verification status message
+          setSuccess('Please verify your email address before logging in. We have sent a verification link to your inbox.');
+          setError('');
+        } else if (msgLower.includes('no account found')) {
+          // Auto switch to signup flow for non-existent users
           setIsSignup(true);
           setSuccess('No account found for this email. Please create a new account.');
+          setError('');
+        } else {
+          setError(loginResult.message || 'Invalid email or password');
         }
       }
       setIsLoading(false);
@@ -334,7 +353,10 @@ const LoginPage = ({ onLogin }) => {
       try {
         const response = await apiService.verifyEmail(email);
         if (response.exists) {
-          setError('An account with this email already exists');
+          // Inform user and redirect to login mode
+          setSuccess('An account with this email already exists. Please login.');
+          setIsSignup(false);
+          setError('');
         }
       } catch (error) {
         // Ignore verification errors
