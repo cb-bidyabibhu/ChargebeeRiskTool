@@ -131,11 +131,6 @@ class APIService {
         throw new Error('Please use a valid @chargebee.com email address');
       }
 
-      const existsCheck = await this.checkUserExists(email);
-      if (existsCheck.exists) {
-        throw new Error('An account with this email already exists. Please login instead.');
-      }
-
       const response = await this.makeRequest('/auth/signup', {
         method: 'POST',
         body: JSON.stringify({
@@ -155,6 +150,15 @@ class APIService {
           dev_mode: response.dev_mode
         };
       } else {
+        // Handle the case where user already exists
+        if (response.should_redirect) {
+          return {
+            success: false,
+            message: response.message,
+            redirect_to: response.redirect_to,
+            should_redirect: true
+          };
+        }
         throw new Error(response.message || 'Failed to create account');
       }
     } catch (error) {
@@ -194,7 +198,29 @@ class APIService {
           session: response.session
         };
       } else {
-        throw new Error(response.message || 'Invalid email or password');
+        // Handle specific error cases
+        if (response.should_redirect) {
+          return {
+            success: false,
+            message: response.message,
+            redirect_to: response.redirect_to,
+            should_redirect: true
+          };
+        }
+        
+        if (response.need_verification) {
+          return {
+            success: false,
+            message: response.message,
+            need_verification: true,
+            email_verified: false
+          };
+        }
+        
+        return {
+          success: false,
+          message: response.message || 'Invalid email or password'
+        };
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -258,6 +284,16 @@ class APIService {
       }
     } catch (error) {
       console.error('User check failed:', error);
+      return { exists: false };
+    }
+  }
+
+  async verifyEmail(email) {
+    try {
+      const response = await this.checkUserExists(email);
+      return response;
+    } catch (error) {
+      console.error('Email verification failed:', error);
       return { exists: false };
     }
   }

@@ -239,10 +239,53 @@ const LoginPage = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [userExists, setUserExists] = useState(null);
+  const [checkingUser, setCheckingUser] = useState(false);
 
   const validateChargebeeEmail = (email) => {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@chargebee\.com$/;
     return emailRegex.test(email);
+  };
+
+  // Check user existence when email changes
+  const handleEmailChange = async (newEmail) => {
+    setEmail(newEmail);
+    setError('');
+    setSuccess('');
+    setUserExists(null);
+    
+    if (validateChargebeeEmail(newEmail)) {
+      setCheckingUser(true);
+      try {
+        const response = await apiService.checkUserExists(newEmail);
+        setUserExists(response.exists);
+        
+        // Auto-switch to appropriate mode based on user existence
+        if (response.exists && !isSignup) {
+          // User exists and we're in login mode - this is correct
+        } else if (!response.exists && isSignup) {
+          // User doesn't exist and we're in signup mode - this is correct
+        } else if (response.exists && isSignup) {
+          // User exists but we're in signup mode - show message and switch to login
+          setError('An account with this email already exists. Please login instead.');
+          setTimeout(() => {
+            setIsSignup(false);
+            setError('');
+          }, 2000);
+        } else if (!response.exists && !isSignup) {
+          // User doesn't exist but we're in login mode - show message and switch to signup
+          setError('No account found with this email. Please sign up first.');
+          setTimeout(() => {
+            setIsSignup(true);
+            setError('');
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error checking user:', error);
+      } finally {
+        setCheckingUser(false);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -294,14 +337,23 @@ const LoginPage = ({ onLogin }) => {
               setIsLoading(false);
             }, 1000);
           } else {
-            setSuccess('Account created successfully! Please check your email to verify, then login.');
+            setSuccess('Account created successfully! Please check your email to verify your account, then login.');
             setIsSignup(false);
+            setPassword('');
+            setConfirmPassword('');
+            setName('');
           }
-          setName('');
-          setConfirmPassword('');
-          setPassword('');
         } else {
-          setError(response.message || 'Failed to create account');
+          // Handle redirect case
+          if (response.should_redirect) {
+            setError(response.message);
+            setTimeout(() => {
+              setIsSignup(false);
+              setError('');
+            }, 2000);
+          } else {
+            setError(response.message || 'Failed to create account');
+          }
         }
       } catch (error) {
         setError(error.message || 'Failed to create account');
@@ -316,23 +368,20 @@ const LoginPage = ({ onLogin }) => {
       if (loginResult.success) {
         // Login successful - component will unmount
       } else {
-        setError(loginResult.message);
+        // Handle different error types
+        if (loginResult.should_redirect) {
+          setError(loginResult.message);
+          setTimeout(() => {
+            setIsSignup(true);
+            setError('');
+          }, 2000);
+        } else if (loginResult.need_verification) {
+          setError(loginResult.message);
+        } else {
+          setError(loginResult.message);
+        }
       }
       setIsLoading(false);
-    }
-  };
-
-  // Check email availability on blur
-  const handleEmailBlur = async () => {
-    if (isSignup && validateChargebeeEmail(email)) {
-      try {
-        const response = await apiService.verifyEmail(email);
-        if (response.exists) {
-          setError('An account with this email already exists');
-        }
-      } catch (error) {
-        // Ignore verification errors
-      }
     }
   };
 
@@ -390,21 +439,29 @@ const LoginPage = ({ onLogin }) => {
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Chargebee Email
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError(''); // Clear error when user types
-              }}
-              onBlur={handleEmailBlur}
-              placeholder="your.name@chargebee.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              required
-            />
+            <div className="relative">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="your.name@chargebee.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                required
+              />
+              {checkingUser && (
+                <div className="absolute right-3 top-3">
+                  <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+                </div>
+              )}
+            </div>
             <p className="text-xs text-gray-500 mt-1">
               Must be a valid @chargebee.com email address
             </p>
+            {userExists !== null && validateChargebeeEmail(email) && (
+              <p className={`text-xs mt-1 ${userExists ? 'text-green-600' : 'text-blue-600'}`}>
+                {userExists ? 'Account found - you can login' : 'New email - you can sign up'}
+              </p>
+            )}
           </div>
 
           <div>
@@ -2560,7 +2617,12 @@ const App = () => {
         setUser(response.user);
         return { success: true };
       } else {
-        return { success: false, message: response.message || 'Invalid email or password' };
+        return { 
+          success: false, 
+          message: response.message || 'Invalid email or password',
+          should_redirect: response.should_redirect,
+          need_verification: response.need_verification
+        };
       }
     } catch (error) {
       return { success: false, message: error.message || 'Invalid email or password' };

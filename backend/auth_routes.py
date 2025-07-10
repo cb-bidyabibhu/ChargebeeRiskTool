@@ -47,35 +47,70 @@ def validate_chargebee_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@chargebee\.com$'
     return re.match(pattern, email) is not None
 
-# FIXED: Helper function to check if user exists
-async def check_user_exists_in_supabase(email: str) -> bool:
-    """Check if user already exists in Supabase Auth"""
+# Helper function to check if user exists and get verification status
+async def check_user_exists_in_supabase(email: str) -> dict:
+    """Check if user exists in Supabase Auth and get their verification status"""
     try:
-        # Try to get user by email (this will work if user exists)
-        # Note: Supabase doesn't provide a direct "check user exists" method
-        # So we'll attempt to sign in with a dummy password to check existence
-        # But that's not ideal. Instead, we'll use a different approach.
-        
-        # For now, we'll maintain a simple users table to track registrations
-        # Or use the auth.users table if accessible
-        
-        # Alternative: Try to initiate password reset (safe way to check existence)
+        # Use Supabase admin client to check user existence
+        # This is the most reliable method
         try:
-            # This won't actually send an email in our case, but will tell us if user exists
-            result = supabase.auth.reset_password_email(email, {
-                "redirect_to": get_redirect_url() + "/reset-password"
+            # Try to get user by email using admin function
+            # Note: This requires admin privileges, so we'll use a different approach
+            
+            # Better approach: Try to sign in with a random password to check existence
+            # This will tell us if user exists without actually logging them in
+            temp_response = supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": "dummy_password_check_12345"  # Random password
             })
-            return True  # If no exception, user exists
+            
+            # If we get here, user exists but password is wrong
+            return {
+                "exists": True,
+                "email_verified": False,  # We'll determine this separately
+                "message": "User exists"
+            }
+            
         except Exception as e:
             error_msg = str(e).lower()
-            if "user not found" in error_msg or "invalid email" in error_msg:
-                return False
-            # If it's a different error, assume user might exist
-            return True
             
+            # Check specific error messages to determine user existence
+            if "invalid login credentials" in error_msg:
+                # User exists but password is wrong
+                return {
+                    "exists": True,
+                    "email_verified": None,  # Unknown, need to check separately
+                    "message": "User exists"
+                }
+            elif "user not found" in error_msg or "invalid email" in error_msg:
+                # User doesn't exist
+                return {
+                    "exists": False,
+                    "email_verified": False,
+                    "message": "User not found"
+                }
+            elif "email not confirmed" in error_msg:
+                # User exists but email not verified
+                return {
+                    "exists": True,
+                    "email_verified": False,
+                    "message": "User exists but email not verified"
+                }
+            else:
+                # Unknown error, assume user might exist
+                return {
+                    "exists": True,
+                    "email_verified": None,
+                    "message": "Unable to verify user status"
+                }
+                
     except Exception as e:
         print(f"Error checking user existence: {e}")
-        return False
+        return {
+            "exists": False,
+            "email_verified": False,
+            "message": "Error checking user existence"
+        }
 
 # Pydantic models
 class SignUpRequest(BaseModel):
@@ -119,23 +154,27 @@ class UpdateProfileRequest(BaseModel):
 @router.post("/check-user")
 async def check_user_existence(request: CheckUserRequest):
     """
-    FIXED: Check if user exists in the system
+    Check if user exists in the system and their verification status
     """
     try:
         # Validate Chargebee email
         if not validate_chargebee_email(request.email):
             return {
                 "exists": False,
-                "message": "Invalid email domain. Must be @chargebee.com"
+                "email_verified": False,
+                "message": "Invalid email domain. Must be @chargebee.com",
+                "redirect_to": "signup"
             }
         
         # Check if user exists in Supabase
-        user_exists = await check_user_exists_in_supabase(request.email)
+        user_status = await check_user_exists_in_supabase(request.email)
         
         return {
-            "exists": user_exists,
+            "exists": user_status["exists"],
+            "email_verified": user_status["email_verified"],
             "email": request.email,
-            "message": "User exists" if user_exists else "User not found"
+            "message": user_status["message"],
+            "redirect_to": "login" if user_status["exists"] else "signup"
         }
         
     except Exception as e:
@@ -143,22 +182,26 @@ async def check_user_existence(request: CheckUserRequest):
         # In case of error, assume user doesn't exist to allow signup
         return {
             "exists": False,
-            "message": "Unable to verify user existence"
+            "email_verified": False,
+            "message": "Unable to verify user existence",
+            "redirect_to": "signup"
         }
 
 @router.post("/signup")
 async def sign_up(request: SignUpRequest):
     """
-    FIXED: Create a new user account with proper validation
+    Create a new user account with proper validation
     """
     try:
-        # FIXED: Check if user already exists
-        user_exists = await check_user_exists_in_supabase(request.email)
-        if user_exists:
-            raise HTTPException(
-                status_code=400, 
-                detail="An account with this email already exists. Please login instead."
-            )
+        # Check if user already exists
+        user_status = await check_user_exists_in_supabase(request.email)
+        if user_status["exists"]:
+            return {
+                "success": False,
+                "message": "An account with this email already exists. Please login instead.",
+                "redirect_to": "login",
+                "should_redirect": True
+            }
         
         redirect_url = get_redirect_url()
         
@@ -241,23 +284,26 @@ async def sign_up(request: SignUpRequest):
 @router.post("/signin")
 async def sign_in(request: SignInRequest):
     """
-    FIXED: Sign in with proper authentication validation
+    Sign in with proper authentication validation
     """
     try:
-        # FIXED: Always validate email domain first
+        # Always validate email domain first
         if not validate_chargebee_email(request.email):
-            raise HTTPException(
-                status_code=400, 
-                detail="Please use a valid @chargebee.com email address"
-            )
+            return {
+                "success": False,
+                "message": "Please use a valid @chargebee.com email address",
+                "redirect_to": "signup"
+            }
         
-        # FIXED: Check if user exists before attempting login
-        user_exists = await check_user_exists_in_supabase(request.email)
-        if not user_exists:
-            raise HTTPException(
-                status_code=401, 
-                detail="No account found with this email. Please sign up first."
-            )
+        # Check if user exists before attempting login
+        user_status = await check_user_exists_in_supabase(request.email)
+        if not user_status["exists"]:
+            return {
+                "success": False,
+                "message": "No account found with this email. Please sign up first.",
+                "redirect_to": "signup",
+                "should_redirect": True
+            }
         
         # Try Supabase authentication
         try:
@@ -267,6 +313,17 @@ async def sign_in(request: SignInRequest):
             })
             
             if response.user and response.session:
+                # Check if email is verified
+                email_verified = response.user.email_confirmed_at is not None
+                
+                if not email_verified:
+                    return {
+                        "success": False,
+                        "message": "Please verify your email address before signing in. Check your email for the verification link.",
+                        "email_verified": False,
+                        "need_verification": True
+                    }
+                
                 return {
                     "success": True,
                     "message": "Signed in successfully",
@@ -274,7 +331,7 @@ async def sign_in(request: SignInRequest):
                         "id": response.user.id,
                         "email": response.user.email,
                         "user_metadata": response.user.user_metadata or {},
-                        "email_verified": response.user.email_confirmed_at is not None
+                        "email_verified": email_verified
                     },
                     "session": {
                         "access_token": response.session.access_token,
@@ -283,12 +340,26 @@ async def sign_in(request: SignInRequest):
                     }
                 }
             else:
-                raise HTTPException(status_code=401, detail="Invalid credentials")
+                return {
+                    "success": False,
+                    "message": "Invalid credentials"
+                }
                 
         except Exception as supabase_error:
             error_message = str(supabase_error).lower()
-            if "invalid login credentials" in error_message or "invalid email or password" in error_message:
-                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            if "email not confirmed" in error_message:
+                return {
+                    "success": False,
+                    "message": "Please verify your email address before signing in. Check your email for the verification link.",
+                    "email_verified": False,
+                    "need_verification": True
+                }
+            elif "invalid login credentials" in error_message or "invalid email or password" in error_message:
+                return {
+                    "success": False,
+                    "message": "Invalid email or password"
+                }
             
             # For development mode fallback
             if os.getenv("ENVIRONMENT") == "development":
@@ -312,13 +383,17 @@ async def sign_in(request: SignInRequest):
                         "dev_mode": True
                     }
             
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            return {
+                "success": False,
+                "message": "Invalid email or password"
+            }
             
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"Login error: {e}")
-        raise HTTPException(status_code=500, detail="Login failed due to server error")
+        return {
+            "success": False,
+            "message": "Login failed due to server error"
+        }
 
 @router.post("/signout")
 async def sign_out(authorization: str = Depends(get_current_user_token)):
