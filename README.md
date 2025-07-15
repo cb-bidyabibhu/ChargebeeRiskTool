@@ -557,4 +557,4 @@ This project is proprietary software for Chargebee internal use.
 
 ---
 
-**Built with ❤️ for Chargebee Risk Management** 
+**Built with ❤️ for Chargebee Risk Management**
