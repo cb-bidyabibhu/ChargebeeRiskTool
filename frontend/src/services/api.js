@@ -22,9 +22,9 @@ class APIService {
       return 'https://chargebee-kyb-backend.onrender.com';
     }
     
-    // Local development
+    // Local development - use port 8001 since 8000 is occupied
     if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
-      return 'http://localhost:8000';
+      return 'http://localhost:8001';
     }
     
     // Fallback to production
@@ -148,17 +148,22 @@ class APIService {
       if (response.success) {
         return {
           success: true,
-          message: response.dev_mode ? 
-            'Account created successfully! You can now login.' :
-            'Account created successfully! Please check your email to verify your account.',
+          message: response.message,
           user: response.user,
-          dev_mode: response.dev_mode
+          requires_verification: response.requires_verification || false,
+          dev_mode: response.dev_mode || false
         };
       } else {
         throw new Error(response.message || 'Failed to create account');
       }
     } catch (error) {
       console.error('Signup failed:', error);
+      
+      // Handle specific error cases
+      if (error.message.includes('already exists') || error.message.includes('already registered')) {
+        throw new Error('An account with this email already exists. Please login instead.');
+      }
+      
       throw error;
     }
   }
@@ -181,6 +186,16 @@ class APIService {
         })
       });
 
+      // Handle email verification requirement
+      if (response.requires_verification) {
+        return {
+          success: false,
+          message: response.message,
+          requires_verification: true,
+          email: response.email
+        };
+      }
+
       if (response.success) {
         this.setAuthTokens(
           response.session.access_token,
@@ -198,7 +213,19 @@ class APIService {
       }
     } catch (error) {
       console.error('Login failed:', error);
-      throw new Error(error.message || 'Invalid email or password');
+      
+      // Handle specific error cases
+      if (error.message.includes('No account found')) {
+        throw new Error('No account found with this email. Please sign up first.');
+      } else if (error.message.includes('Please verify your email')) {
+        return {
+          success: false,
+          message: error.message,
+          requires_verification: true
+        };
+      }
+      
+      throw error;
     }
   }
 
@@ -242,24 +269,34 @@ class APIService {
 
   async checkUserExists(email) {
     try {
-      const response = await fetch(`${this.baseURL}/auth/check-user`, {
+      if (!this.validateChargebeeEmail(email)) {
+        throw new Error('Please use a valid @chargebee.com email address');
+      }
+
+      const response = await this.makeRequest('/auth/check-user', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({
+          email: email
+        })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      } else {
-        return { exists: false };
-      }
+      return {
+        exists: response.exists,
+        message: response.message
+      };
     } catch (error) {
-      console.error('User check failed:', error);
-      return { exists: false };
+      console.error('User existence check failed:', error);
+      // In case of error, assume user doesn't exist to allow signup
+      return {
+        exists: false,
+        message: 'Unable to verify user existence'
+      };
     }
+  }
+
+  async verifyEmail(email) {
+    // Alias for checkUserExists for consistency
+    return this.checkUserExists(email);
   }
 
   validateChargebeeEmail(email) {

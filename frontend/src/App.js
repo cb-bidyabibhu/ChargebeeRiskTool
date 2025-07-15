@@ -239,6 +239,7 @@ const LoginPage = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
 
   const validateChargebeeEmail = (email) => {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@chargebee\.com$/;
@@ -249,6 +250,7 @@ const LoginPage = ({ onLogin }) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setShowVerificationMessage(false);
     
     // Validate Chargebee email domain
     if (!validateChargebeeEmail(email)) {
@@ -280,31 +282,24 @@ const LoginPage = ({ onLogin }) => {
         const response = await apiService.signup(email, password, name);
         
         if (response.success) {
-          if (response.dev_mode) {
-            // In dev mode, auto-login after signup
-            setSuccess('Account created! Logging you in...');
-            setTimeout(async () => {
-              setIsLoading(true);
-              const loginResult = await onLogin(email, password);
-              if (loginResult.success) {
-                setIsSignup(false);
-              } else {
-                setError(loginResult.message);
-              }
-              setIsLoading(false);
-            }, 1000);
-          } else {
-            setSuccess('Account created successfully! Please check your email to verify, then login.');
-            setIsSignup(false);
-          }
+          setSuccess('Account created successfully! Please check your email to verify your account before signing in.');
+          setShowVerificationMessage(true);
+          // Clear form
           setName('');
           setConfirmPassword('');
           setPassword('');
+          // Don't switch to login mode - let user see the verification message
         } else {
           setError(response.message || 'Failed to create account');
         }
       } catch (error) {
-        setError(error.message || 'Failed to create account');
+        if (error.message.includes('already exists')) {
+          setError('An account with this email already exists. Please login instead.');
+          // Automatically switch to login mode
+          setIsSignup(false);
+        } else {
+          setError(error.message || 'Failed to create account');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -312,13 +307,28 @@ const LoginPage = ({ onLogin }) => {
     } else {
       // Login
       setIsLoading(true);
-      const loginResult = await onLogin(email, password);
-      if (loginResult.success) {
-        // Login successful - component will unmount
-      } else {
-        setError(loginResult.message);
+      try {
+        const loginResult = await onLogin(email, password);
+        
+        if (loginResult.success) {
+          // Login successful - component will unmount
+        } else if (loginResult.requires_verification) {
+          setError('Please verify your email address before signing in. Check your inbox for the verification link.');
+          setShowVerificationMessage(true);
+        } else {
+          setError(loginResult.message);
+        }
+      } catch (error) {
+        if (error.message.includes('No account found')) {
+          setError('No account found with this email. Please sign up first.');
+          // Automatically switch to signup mode
+          setIsSignup(true);
+        } else {
+          setError(error.message);
+        }
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
   };
 
@@ -328,7 +338,7 @@ const LoginPage = ({ onLogin }) => {
       try {
         const response = await apiService.verifyEmail(email);
         if (response.exists) {
-          setError('An account with this email already exists');
+          setError('An account with this email already exists. Please login instead.');
         }
       } catch (error) {
         // Ignore verification errors
@@ -349,8 +359,26 @@ const LoginPage = ({ onLogin }) => {
           </p>
         </div>
 
+        {/* Email verification message */}
+        {showVerificationMessage && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start">
+              <Mail className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold text-blue-800 mb-1">Email Verification Required</h4>
+                <p className="text-sm text-blue-700 mb-2">
+                  We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the link to verify your account.
+                </p>
+                <p className="text-xs text-blue-600">
+                  After verification, you can sign in to access the platform.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Success message */}
-        {success && (
+        {success && !showVerificationMessage && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm text-green-600 flex items-center">
               <CheckCircle className="w-4 h-4 mr-2" />
@@ -360,7 +388,7 @@ const LoginPage = ({ onLogin }) => {
         )}
 
         {/* Error display */}
-        {error && (
+        {error && !showVerificationMessage && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-600 flex items-center">
               <AlertTriangle className="w-4 h-4 mr-2" />
@@ -369,128 +397,150 @@ const LoginPage = ({ onLogin }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {isSignup && (
+        {!showVerificationMessage && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {isSignup && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your full name"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Full Name
+                Chargebee Email
               </label>
               <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your full name"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError(''); // Clear error when user types
+                }}
+                onBlur={handleEmailBlur}
+                placeholder="your.name@chargebee.com"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
               />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Chargebee Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError(''); // Clear error when user types
-              }}
-              onBlur={handleEmailBlur}
-              placeholder="your.name@chargebee.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Must be a valid @chargebee.com email address
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError(''); // Clear error when user types
-              }}
-              placeholder="Enter your password"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              required
-              minLength={isSignup ? 6 : 1}
-            />
-            {isSignup && (
               <p className="text-xs text-gray-500 mt-1">
-                Minimum 6 characters
+                Must be a valid @chargebee.com email address
               </p>
-            )}
-          </div>
+            </div>
 
-          {isSignup && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Confirm Password
+                Password
               </label>
               <input
                 type="password"
-                value={confirmPassword}
+                value={password}
                 onChange={(e) => {
-                  setConfirmPassword(e.target.value);
+                  setPassword(e.target.value);
                   setError(''); // Clear error when user types
                 }}
-                placeholder="Confirm your password"
+                placeholder="Enter your password"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
+                minLength={isSignup ? 6 : 1}
               />
+              {isSignup && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimum 6 characters
+                </p>
+              )}
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold disabled:opacity-50 flex items-center justify-center"
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                {isSignup ? 'Creating Account...' : 'Signing In...'}
-              </>
-            ) : (
-              isSignup ? 'Create Account' : 'Sign In'
+            {isSignup && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError(''); // Clear error when user types
+                  }}
+                  placeholder="Confirm your password"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
             )}
-          </button>
-        </form>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold disabled:opacity-50 flex items-center justify-center"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                  {isSignup ? 'Creating Account...' : 'Signing In...'}
+                </>
+              ) : (
+                isSignup ? 'Create Account' : 'Sign In'
+              )}
+            </button>
+          </form>
+        )}
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            {isSignup ? 'Already have an account?' : "Don't have an account?"}
-            <button
-              onClick={() => {
-                setIsSignup(!isSignup);
-                setPassword('');
-                setConfirmPassword('');
-                setError('');
-                setSuccess('');
-              }}
-              className="ml-2 text-blue-600 hover:text-blue-700 font-semibold"
-            >
-              {isSignup ? 'Sign In' : 'Sign Up'}
-            </button>
-          </p>
+          {showVerificationMessage ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Didn't receive the email? Check your spam folder or
+              </p>
+              <button
+                onClick={() => {
+                  setShowVerificationMessage(false);
+                  setError('');
+                  setSuccess('');
+                }}
+                className="text-blue-600 hover:text-blue-700 font-semibold"
+              >
+                Try signing in again
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600">
+                {isSignup ? 'Already have an account?' : "Don't have an account?"}
+                <button
+                  onClick={() => {
+                    setIsSignup(!isSignup);
+                    setPassword('');
+                    setConfirmPassword('');
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="ml-2 text-blue-600 hover:text-blue-700 font-semibold"
+                >
+                  {isSignup ? 'Sign In' : 'Sign Up'}
+                </button>
+              </p>
+              
+              {/* Forgot password link */}
+              {!isSignup && (
+                <div className="mt-4">
+                  <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
+                    Forgot your password?
+                  </a>
+                </div>
+              )}
+            </>
+          )}
         </div>
-
-        {/* Forgot password link */}
-        {!isSignup && (
-          <div className="mt-4 text-center">
-            <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
-              Forgot your password?
-            </a>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1186,7 +1236,7 @@ const pollAssessment = (assessmentId, domainName) => {
                     ))}
                   </div>
 
-                  {/* Raw Scraper Data Section - Dashboard Version */}
+                  {/* Raw Scraper Data Section - Now Expandable */}
                   {currentAssessment.scraped_data && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
                       <button

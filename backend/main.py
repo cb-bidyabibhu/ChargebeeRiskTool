@@ -31,6 +31,9 @@ from risk_assessment import (
     extract_json_from_response
 )
 
+# Import auth routes
+from auth_routes import router as auth_router
+
 # Import utilities if available
 try:
     from utils.data_validator import validate_domain_input, get_data_quality_score
@@ -69,6 +72,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Include auth routes
+app.include_router(auth_router)
 
 # Initialize enhanced database client
 db_client = None

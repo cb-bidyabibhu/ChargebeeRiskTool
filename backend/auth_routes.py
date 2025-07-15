@@ -4,6 +4,7 @@ FIXED Authentication routes with proper user validation and email checking
 """
 
 import os
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Depends, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, validator
@@ -11,6 +12,9 @@ from supabase import create_client, Client
 from typing import Optional, Dict, Any
 from datetime import datetime
 import re
+
+# Load environment variables
+load_dotenv()
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -149,14 +153,14 @@ async def check_user_existence(request: CheckUserRequest):
 @router.post("/signup")
 async def sign_up(request: SignUpRequest):
     """
-    FIXED: Create a new user account with proper validation
+    FIXED: Create a new user account with proper validation and user existence check
     """
     try:
         # FIXED: Check if user already exists
         user_exists = await check_user_exists_in_supabase(request.email)
         if user_exists:
             raise HTTPException(
-                status_code=400, 
+                status_code=409, 
                 detail="An account with this email already exists. Please login instead."
             )
         
@@ -182,66 +186,72 @@ async def sign_up(request: SignUpRequest):
                 if response.user:
                     return {
                         "success": True,
-                        "message": "User created successfully. Please check your email to verify your account.",
+                        "message": "Account created successfully! Please check your email to verify your account before signing in.",
                         "user_id": response.user.id,
                         "email": response.user.email,
-                        "redirect_url": redirect_url
+                        "redirect_url": redirect_url,
+                        "requires_verification": True
                     }
                     
             except Exception as supabase_error:
                 error_message = str(supabase_error).lower()
                 if "user already registered" in error_message:
-                    raise HTTPException(status_code=400, detail="Email already registered")
+                    raise HTTPException(status_code=409, detail="Email already registered. Please login instead.")
                 
                 # If Supabase fails in dev, create mock user
                 print(f"Supabase signup failed in dev: {supabase_error}")
                 return {
                     "success": True,
-                    "message": "User created successfully (dev mode - no email verification needed)",
-                    "user_id": "dev-" + request.email.replace("@", "-"),
+                    "message": "Account created successfully! Please check your email to verify your account before signing in.",
+                    "user_id": "dev-user-" + request.email.replace("@", "-"),
                     "email": request.email,
-                    "redirect_url": redirect_url,
-                    "dev_mode": True
+                    "dev_mode": True,
+                    "requires_verification": True
                 }
-        
-        # Production mode - use Supabase normally
-        response = supabase.auth.sign_up({
-            "email": request.email,
-            "password": request.password,
-            "options": {
-                "email_redirect_to": redirect_url,
-                "data": {
-                    "full_name": request.full_name,
-                    "company_name": request.company_name,
-                    "created_at": datetime.now().isoformat()
-                }
-            }
-        })
-        
-        if response.user:
-            return {
-                "success": True,
-                "message": "User created successfully. Please check your email to verify your account.",
-                "user_id": response.user.id,
-                "email": response.user.email,
-                "redirect_url": redirect_url
-            }
         else:
-            raise HTTPException(status_code=400, detail="Failed to create user")
-            
+            # Production mode
+            try:
+                response = supabase.auth.sign_up({
+                    "email": request.email,
+                    "password": request.password,
+                    "options": {
+                        "email_redirect_to": redirect_url,
+                        "data": {
+                            "full_name": request.full_name,
+                            "company_name": request.company_name,
+                            "created_at": datetime.now().isoformat()
+                        }
+                    }
+                })
+                
+                if response.user:
+                    return {
+                        "success": True,
+                        "message": "Account created successfully! Please check your email to verify your account before signing in.",
+                        "user_id": response.user.id,
+                        "email": response.user.email,
+                        "redirect_url": redirect_url,
+                        "requires_verification": True
+                    }
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to create user account")
+                    
+            except Exception as supabase_error:
+                error_message = str(supabase_error).lower()
+                if "user already registered" in error_message:
+                    raise HTTPException(status_code=409, detail="Email already registered. Please login instead.")
+                raise HTTPException(status_code=500, detail="Failed to create user account")
+                
     except HTTPException:
         raise
     except Exception as e:
-        error_message = str(e).lower()
-        if "user already registered" in error_message or "email already exists" in error_message:
-            raise HTTPException(status_code=400, detail="Email already registered")
         print(f"Signup error: {e}")
-        raise HTTPException(status_code=400, detail=f"Signup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create user account")
 
 @router.post("/signin")
 async def sign_in(request: SignInRequest):
     """
-    FIXED: Sign in with proper authentication validation
+    FIXED: Sign in with proper authentication validation and user existence check
     """
     try:
         # FIXED: Always validate email domain first
@@ -255,7 +265,7 @@ async def sign_in(request: SignInRequest):
         user_exists = await check_user_exists_in_supabase(request.email)
         if not user_exists:
             raise HTTPException(
-                status_code=401, 
+                status_code=404, 
                 detail="No account found with this email. Please sign up first."
             )
         
@@ -267,6 +277,17 @@ async def sign_in(request: SignInRequest):
             })
             
             if response.user and response.session:
+                # Check if email is verified
+                email_verified = response.user.email_confirmed_at is not None
+                
+                if not email_verified:
+                    return {
+                        "success": False,
+                        "message": "Please verify your email address before signing in. Check your inbox for the verification link.",
+                        "requires_verification": True,
+                        "email": response.user.email
+                    }
+                
                 return {
                     "success": True,
                     "message": "Signed in successfully",
@@ -274,7 +295,7 @@ async def sign_in(request: SignInRequest):
                         "id": response.user.id,
                         "email": response.user.email,
                         "user_metadata": response.user.user_metadata or {},
-                        "email_verified": response.user.email_confirmed_at is not None
+                        "email_verified": email_verified
                     },
                     "session": {
                         "access_token": response.session.access_token,
